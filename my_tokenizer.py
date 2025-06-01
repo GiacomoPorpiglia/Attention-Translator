@@ -23,8 +23,14 @@ def train_tokenizer(df):
         min_frequency=10, # Minimum frequency for a token to be included
     )
 
-    texts_en = df['en'].astype(str).tolist()
-    texts_fr = df['fr'].astype(str).tolist()
+    pattern = r'^[\x20-\x7E]+$'
+
+    # Apply the pattern to both columns
+    mask = df['col1'].str.match(pattern) & df['col2'].str.match(pattern)
+    clean_df = df[mask].copy()
+
+    texts_en = clean_df['en'].astype(str).tolist()
+    texts_fr = clean_df['fr'].astype(str).tolist()
 
     texts = texts_en + texts_fr
     tokenizer.train_from_iterator(texts, trainer=trainer)

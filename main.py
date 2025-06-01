@@ -14,18 +14,7 @@ import config
 
 import kagglehub
 
-# Download latest version
-path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
-print("Path to dataset files:", path)
-df = pd.read_csv(path + "/en-fr.csv")
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("Using device: ", device)
-
-dataset = PhrasesDataset(df, loaded_tokenizer)
-train_len = int(len(dataset) * 0.9)
-val_len = len(dataset) - train_len
 
 
 def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=192, force_max_length=False):
@@ -74,19 +63,6 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=192, 
       'labels':              decoder_targets,
     }
 
-
-train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
-
-dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
-dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
-
-
-encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=192, dim=1536).to(device)
-print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=192, dim=1536).to(device)
-print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
-criterion = nn.CrossEntropyLoss(ignore_index=-100)
-optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.lr)
 
 
 
@@ -278,6 +254,38 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
 if __name__ == "__main__":
     
+    
+    # Download latest version
+    path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
+    print("Path to dataset files:", path)
+    df = pd.read_csv(path + "/en-fr.csv")
+
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device: ", device)
+
+
+    
+    dataset = PhrasesDataset(df, loaded_tokenizer)
+    train_len = int(len(dataset) * 0.9)
+    val_len = len(dataset) - train_len
+
+
+    train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
+
+    dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
+    dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
+
+
+    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=192, dim=1536).to(device)
+    print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
+    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=192, dim=1536).to(device)
+    print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
+    criterion = nn.CrossEntropyLoss(ignore_index=-100)
+    optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.lr)
+
+
+
     test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
                      'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
     test(test_text, encoder, decoder, loaded_tokenizer, device)
