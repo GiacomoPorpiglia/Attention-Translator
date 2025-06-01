@@ -118,7 +118,9 @@ def add_pad_starting_from(decoder_input_ids, decoder_attention_mask, start_index
     
 
 
-def test(input, encoder, decoder, tokenizer, device, pad_token_id=0, bos_token_id=1, eos_token_id=2):
+def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_token_id=1, eos_token_id=2):
+    encoder.to(device)
+    decoder.to(device)
     encoder.eval()
     decoder.eval()
 
@@ -167,8 +169,7 @@ def test(input, encoder, decoder, tokenizer, device, pad_token_id=0, bos_token_i
 
 
 
-def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, num_epochs=100):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, device="cpu", num_epochs=100):
     encoder.to(device)
     decoder.to(device)
 
@@ -180,10 +181,11 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
         total_loss = 0
         for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
         
-            if batch_idx%100 == 0:
+            if batch_idx%100 == 1:
                 test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
                              'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
                 test(test_text, encoder, decoder, loaded_tokenizer, device)
+                print(f"Temp loss: {(total_loss/batch_idx):.4f}")
 
             encoder_input_ids = batch['encoder_input_ids'].to(device)
             encoder_attention_mask = batch['encoder_attention_mask'].to(device)
@@ -288,6 +290,6 @@ if __name__ == "__main__":
 
     test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
                      'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
-    test(test_text, encoder, decoder, loaded_tokenizer, device)
+    test(test_text, encoder, decoder, loaded_tokenizer, device=device)
 
-    train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, num_epochs=100)
+    train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, device=device, num_epochs=100 )

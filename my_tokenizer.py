@@ -1,4 +1,4 @@
-from tokenizers import Tokenizer, models, trainers, pre_tokenizers
+from tokenizers import Tokenizer, models, trainers, pre_tokenizers, normalizers
 from tokenizers.processors import TemplateProcessing
 import os
 from datasets import load_dataset
@@ -16,6 +16,8 @@ def train_tokenizer(df):
 
     special_tokens = ["<pad>", "<bos>", "<eos>", "<unk>"]
     tokenizer.add_special_tokens(special_tokens)
+    tokenizer.normalizer = normalizers.Lowercase()
+
 
     trainer = trainers.BpeTrainer(
         special_tokens=special_tokens, # Re-iterate special tokens here

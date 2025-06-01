@@ -6,13 +6,20 @@ from my_tokenizer import loaded_tokenizer
 class PhrasesDataset(Dataset):
     
     def __init__(self, df, tokenizer):
-        df_clean = df[df[['en', 'fr']].applymap(lambda x: isinstance(x, str)).all(axis=1)]
-        self.df = df_clean
+        pattern = r'^[\x20-\x7E]+$'
+
+        # Apply the pattern to both columns
+        mask = df['en'].str.match(pattern) & df['fr'].str.match(pattern)
+        clean_df = df[mask].copy()
+    
+        texts_en = clean_df['en'].astype(str).tolist()
+        texts_fr = clean_df['fr'].astype(str).tolist()
+        self.df = clean_df
         self.tokenizer = tokenizer
         
         
     def __len__(self):
-        return self.df.shape[0]//20 # use 1/10 of the dataset
+        return self.df.shape[0] # use 1/10 of the dataset
 
 
     def __getitem__(self, idx):
