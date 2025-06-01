@@ -26,7 +26,7 @@ def train_tokenizer(df):
     pattern = r'^[\x20-\x7E]+$'
 
     # Apply the pattern to both columns
-    mask = df['col1'].str.match(pattern) & df['col2'].str.match(pattern)
+    mask = df['en'].str.match(pattern) & df['fr'].str.match(pattern)
     clean_df = df[mask].copy()
 
     texts_en = clean_df['en'].astype(str).tolist()
