@@ -9,6 +9,7 @@ import torch.optim as optim
 from tqdm import tqdm
 from datasets import load_dataset
 import pandas as pd
+import math
 
 import config
 
@@ -17,7 +18,7 @@ import kagglehub
 
 
 
-def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=192, force_max_length=False):
+def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len, force_max_length=False):
     encoder_inputs, decoder_inputs = zip(*batch)
 
     length = min(max_length, max(len(x) for x in encoder_inputs), max(len(y) for y in decoder_inputs))
@@ -100,7 +101,7 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
 
 
 ### add pad to input and attention mask starting from a given index
-### input and mask are tensors of shape [B, T], where T=192
+### input and mask are tensors of shape [B, T], where T=config.max_seq_len
 def add_pad_starting_from(decoder_input_ids, decoder_attention_mask, start_index, pad_token_id=0):
     B, T = decoder_input_ids.size()
     if start_index >= T:
@@ -145,7 +146,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
         # Generate output one token at a time, until EOS token is generated or max length is reached
         output = torch.tensor([bos_token_id], dtype=torch.long, device=device).view(1, 1)  # Initialize output tensor
-        for i in range(191):
+        for i in range(config.max_seq_len-1):
             decoder_inputs, decoder_attention = add_pad_starting_from(decoder_input_ids, decoder_attention_mask, i+1, pad_token_id=pad_token_id)
 
             output_logits = decoder(decoder_inputs, decoder_attention, encoding)
@@ -169,18 +170,36 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
 
 
+def get_lr(iter_num):
+    if(iter_num < config.lr_decay_steps):
+        coeff = math.cos(iter_num / config.lr_decay_steps * math.pi/2)
+        return coeff * config.start_lr + (1-coeff) * config.min_lr
+    else:
+        return config.min_lr
+
+
+
 def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, device="cpu", num_epochs=100):
     encoder.to(device)
     decoder.to(device)
 
-
+    iter_num = 0
     for epoch in range(num_epochs):
+
+        
+
         encoder.train()
         decoder.train()
         optimizer.zero_grad()
         total_loss = 0
         for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
-        
+
+            lr = get_lr(iter_num)
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+            iter_num += 1
+
+            ### print current translation of the test phrase
             if batch_idx%100 == 1:
                 test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
                              'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
@@ -281,12 +300,12 @@ if __name__ == "__main__":
     dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
 
 
-    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=192, dim=1536).to(device)
+    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=192, dim=1536).to(device)
+    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
-    optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.lr)
+    optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.lr, weight_decay=config.weight_decay)
 
 
 
