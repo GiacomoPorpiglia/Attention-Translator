@@ -200,7 +200,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
             iter_num += 1
 
             ### print current translation of the test phrase
-            if batch_idx%100 == 1:
+            if batch_idx%1000 == 1:
                 test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
                              'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
                 test(test_text, encoder, decoder, loaded_tokenizer, device)
