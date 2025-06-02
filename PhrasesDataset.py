@@ -3,26 +3,26 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 from my_tokenizer import loaded_tokenizer
 import unicodedata
+import regex
 
+pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
+
+def is_latin(text):
+    return bool(pattern.fullmatch(text))
+
+    
 class PhrasesDataset(Dataset):
     
     def __init__(self, df, tokenizer):
-        def is_latin_text(text):
-            try:
-                # Only check alphabetic characters for Latin-ness
-                for char in text:
-                    if char.isalpha():
-                        if 'LATIN' not in unicodedata.name(char):
-                            return False
-                return True
-            except ValueError:
-                # Handles characters with no name in Unicode
-                return False
 
         # Apply the pattern to both columns
-        mask = df['en'].apply(is_latin_text) & df['fr'].apply(is_latin_text)
-        clean_df = df[mask].copy()
-        clean_df.reset_index(drop=True, inplace=True) ### Reset index after filtering
+        df = df.dropna(subset=['en', 'fr'])
+        df = df[(df['en'].apply(lambda x: isinstance(x, str))) & (df['fr'].apply(lambda x: isinstance(x, str)))]
+    
+        # Apply the pattern to both columns
+        mask = df['en'].apply(is_latin) & df['fr'].apply(is_latin)
+        clean_df = df[mask].reset_index(drop=True)
+        
         self.df = clean_df
         self.tokenizer = tokenizer
         
@@ -33,7 +33,7 @@ class PhrasesDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        en_encoding = torch.tensor(self.tokenizer.encode(self.df.iloc[idx]['en']).ids, dtype=torch.long)
+        en_encoding  = torch.tensor(self.tokenizer.encode(self.df.iloc[idx]['en']).ids, dtype=torch.long)
         fr_encoding  = torch.tensor(self.tokenizer.encode(self.df.iloc[idx]['fr']).ids, dtype=torch.long)
 
         return en_encoding, fr_encoding

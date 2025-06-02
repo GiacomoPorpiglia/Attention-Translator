@@ -5,22 +5,17 @@ from datasets import load_dataset
 import pandas as pd
 import kagglehub
 import unicodedata
+from collections.abc import Iterable
+import regex
+
+pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
+
+def is_latin(text):
+    return bool(pattern.fullmatch(text))
+
 
 tokenizer_path = "tokenizer.json"
 
-
-
-def is_latin_text(text):
-    try:
-        # Only check alphabetic characters for Latin-ness
-        for char in text:
-            if char.isalpha():
-                if 'LATIN' not in unicodedata.name(char):
-                    return False
-        return True
-    except ValueError:
-        # Handles characters with no name in Unicode
-        return False
 
 def train_tokenizer(df):
 
@@ -38,11 +33,12 @@ def train_tokenizer(df):
         min_frequency=10, # Minimum frequency for a token to be included
     )
 
+    df = df.dropna(subset=['en', 'fr'])
+    df = df[(df['en'].apply(lambda x: isinstance(x, str))) & (df['fr'].apply(lambda x: isinstance(x, str)))]
 
     # Apply the pattern to both columns
-    mask = df['en'].apply(is_latin_text) & df['fr'].apply(is_latin_text)
-    clean_df = df[mask].copy()
-    clean_df.reset_index(drop=True, inplace=True)
+    mask = df['en'].apply(is_latin) & df['fr'].apply(is_latin)
+    clean_df = df[mask].reset_index(drop=True)
 
     texts_en = clean_df['en'].astype(str).tolist()
     texts_fr = clean_df['fr'].astype(str).tolist()
