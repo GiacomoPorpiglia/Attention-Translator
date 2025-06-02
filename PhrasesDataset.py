@@ -11,15 +11,13 @@ class PhrasesDataset(Dataset):
         # Apply the pattern to both columns
         mask = df['en'].str.match(pattern) & df['fr'].str.match(pattern)
         clean_df = df[mask].copy()
-    
-        texts_en = clean_df['en'].astype(str).tolist()
-        texts_fr = clean_df['fr'].astype(str).tolist()
+        clean_df.reset_index(drop=True, inplace=True) ### Reset index after filtering
         self.df = clean_df
         self.tokenizer = tokenizer
         
         
     def __len__(self):
-        return self.df.shape[0] # use 1/10 of the dataset
+        return self.df.shape[0]
 
 
     def __getitem__(self, idx):

@@ -185,6 +185,8 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
                              'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
                 test(test_text, encoder, decoder, loaded_tokenizer, device)
+                encoder.train()
+                decoder.train()
                 print(f"Temp loss: {(total_loss/batch_idx):.4f}")
 
             encoder_input_ids = batch['encoder_input_ids'].to(device)
