@@ -4,10 +4,23 @@ import os
 from datasets import load_dataset
 import pandas as pd
 import kagglehub
+import unicodedata
 
 tokenizer_path = "tokenizer.json"
 
 
+
+def is_latin_text(text):
+    try:
+        # Only check alphabetic characters for Latin-ness
+        for char in text:
+            if char.isalpha():
+                if 'LATIN' not in unicodedata.name(char):
+                    return False
+        return True
+    except ValueError:
+        # Handles characters with no name in Unicode
+        return False
 
 def train_tokenizer(df):
 
@@ -25,11 +38,11 @@ def train_tokenizer(df):
         min_frequency=10, # Minimum frequency for a token to be included
     )
 
-    pattern = r'^[\x20-\x7E]+$'
 
     # Apply the pattern to both columns
-    mask = df['en'].str.match(pattern) & df['fr'].str.match(pattern)
+    mask = df['en'].apply(is_latin_text) & df['fr'].apply(is_latin_text)
     clean_df = df[mask].copy()
+    clean_df.reset_index(drop=True, inplace=True)
 
     texts_en = clean_df['en'].astype(str).tolist()
     texts_fr = clean_df['fr'].astype(str).tolist()
