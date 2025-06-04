@@ -13,7 +13,9 @@ def is_latin(text):
     
 class PhrasesDataset(Dataset):
     
-    def __init__(self, df, tokenizer):
+    def __init__(self, df, tokenizer, max_length):
+
+        self.max_length = max_length
 
         # Apply the pattern to both columns
         df = df.dropna(subset=['en', 'fr'])
@@ -33,8 +35,17 @@ class PhrasesDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        en_encoding  = torch.tensor(self.tokenizer.encode(self.df.iloc[idx]['en']).ids, dtype=torch.long)
-        fr_encoding  = torch.tensor(self.tokenizer.encode(self.df.iloc[idx]['fr']).ids, dtype=torch.long)
+        en_encoded = self.tokenizer.encode(self.df.iloc[idx]['en']).ids
+        fr_encoded = self.tokenizer.encode(self.df.iloc[idx]['fr']).ids
+
+        # Truncate if longer than max_length
+        if len(en_encoded) > self.max_length-2:
+            en_encoded = en_encoded[:self.max_length-2] # -2 is to give space for BOS and EOS tokens
+        if len(fr_encoded) > self.max_length-2:
+            fr_encoded = fr_encoded[:self.max_length-2]
+
+        en_encoding = torch.tensor(en_encoded, dtype=torch.long)
+        fr_encoding = torch.tensor(fr_encoded, dtype=torch.long)
 
         return en_encoding, fr_encoding
         

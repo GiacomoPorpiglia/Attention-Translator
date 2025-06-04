@@ -21,22 +21,17 @@ import kagglehub
 def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len, force_max_length=False):
     encoder_inputs, decoder_inputs = zip(*batch)
 
+    # [BOS,..., ..., EOS, (PAD, PAD)]
+    encoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), x, torch.tensor([eos_token_id])]) for x in encoder_inputs]
+    encoder_inputs  = pad_sequence(encoder_inputs, batch_first=True, padding_value=pad_token_id)
+
+    # [BOS,..., ..., EOS, (PAD, PAD)]
+    decoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), y, torch.tensor([eos_token_id])]) for y in decoder_inputs]
+    decoder_inputs  = pad_sequence(decoder_inputs, batch_first=True, padding_value=pad_token_id)
+
     length = min(max_length, max(len(x) for x in encoder_inputs), max(len(y) for y in decoder_inputs))
     if force_max_length:
         length = max_length
-    # Append BOS 
-    # [..., ..., EOS, (PAD, PAD)]
-    encoder_inputs  = [torch.cat([x, torch.tensor([eos_token_id])]) for x in encoder_inputs]
-    encoder_inputs  = [x[:length] for x in encoder_inputs]
-    encoder_inputs  = pad_sequence(encoder_inputs,  batch_first=True, padding_value=pad_token_id)
-
-    # [BOS,..., EOS, (PAD, PAD)]
-    decoder_inputs = [torch.cat([torch.tensor([bos_token_id]), y, torch.tensor([eos_token_id])]) for y in decoder_inputs]
-
-
-
-    decoder_inputs = [y[:length] for y in decoder_inputs]
-    decoder_inputs = pad_sequence(decoder_inputs, batch_first=True, padding_value=pad_token_id)
 
     if encoder_inputs.size(1) < length:
         pad_size = length - encoder_inputs.size(1)
@@ -46,11 +41,16 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
         pad_size = length - decoder_inputs.size(1)
         decoder_inputs = torch.nn.functional.pad(decoder_inputs, (0, pad_size), value=pad_token_id)
 
-    decoder_targets = torch.stack([torch.cat([x[1:], torch.tensor([pad_token_id])]) for x in decoder_inputs], dim=0)
+    # decoder_targets = torch.stack([torch.cat([x[1:], torch.tensor([pad_token_id])]) for x in decoder_inputs], dim=0)
+    decoder_targets = decoder_inputs[:, 1:].clone()
+    decoder_targets = torch.nn.functional.pad(decoder_targets, (0, 1), value=pad_token_id)
+    decoder_targets[decoder_targets == pad_token_id] = -100
+
+    
 
     # Build attention masks (1 where token ≠ pad, 0 where token == pad)
-    encoder_input_mask  = (encoder_inputs  != pad_token_id).long()
-    decoder_mask = (decoder_inputs != pad_token_id).long()
+    encoder_input_mask  = (encoder_inputs != pad_token_id).long()
+    decoder_mask        = (decoder_inputs != pad_token_id).long()
 
     # For labels, replace pad_token_id with -100 so loss ignores them
 
@@ -62,6 +62,8 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
       'decoder_input_ids':   decoder_inputs,    # your decoder uses teacher forcing
       'decoder_attention_mask': decoder_mask,
       'labels':              decoder_targets,
+      'encoder_lengths': (encoder_inputs != pad_token_id).sum(dim=1),
+      'decoder_lengths': (decoder_inputs != pad_token_id).sum(dim=1),
     }
 
 
@@ -131,8 +133,8 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         fr = input['fr']
 
         en_encoding = torch.tensor(tokenizer.encode(en).ids, dtype=torch.long)
-        fr_encoding  = torch.tensor(tokenizer.encode(fr).ids, dtype=torch.long)
-        
+        fr_encoding = torch.tensor(tokenizer.encode(fr).ids, dtype=torch.long)
+
         batch = [(en_encoding, fr_encoding)]
         batch = collate_fn(batch, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id, force_max_length=True)
         
@@ -302,9 +304,9 @@ if __name__ == "__main__":
     dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
 
 
-    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
     optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.lr, weight_decay=config.weight_decay)
