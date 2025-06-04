@@ -190,12 +190,11 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
     iter_num = 0
     for epoch in range(num_epochs):
 
-        
-
         encoder.train()
         decoder.train()
         optimizer.zero_grad()
         total_loss = 0
+        loss_for_examination = 0
         for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
 
 
@@ -206,7 +205,8 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 test(test_text, encoder, decoder, loaded_tokenizer, device)
                 encoder.train()
                 decoder.train()
-                print(f"Temp loss: {(total_loss/batch_idx):.4f}")
+                print(f"Temp loss: {(loss_for_examination/1000):.4f}")
+                loss_for_examination = 0
 
             encoder_input_ids = batch['encoder_input_ids'].to(device)
             encoder_attention_mask = batch['encoder_attention_mask'].to(device)
@@ -233,6 +233,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 iter_num += 1
 
             total_loss += loss.item()
+            loss_for_examination += loss.item()
 
         avg_loss = total_loss / len(dataloader_train)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}")
@@ -302,13 +303,17 @@ if __name__ == "__main__":
 
     train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
 
-    dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
-    dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2))
+    dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=4, pin_memory=True)
+    dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=4, pin_memory=True)
 
 
     encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
     decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+
+    #encoder = torch.compile(encoder)
+    #decoder = torch.compile(decoder)
+
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
     optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
