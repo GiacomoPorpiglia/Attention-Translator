@@ -194,10 +194,6 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
         total_loss = 0
         for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
 
-            lr = get_lr(iter_num)
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            iter_num += 1
 
             ### print current translation of the test phrase
             if batch_idx%1000 == 1:
@@ -225,6 +221,12 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
             if batch_idx%config.grad_acc_steps==0:
                 optimizer.step()
                 optimizer.zero_grad()
+
+                # Update learning rate
+                lr = get_lr(iter_num)
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+                iter_num += 1
 
             total_loss += loss.item()
 
