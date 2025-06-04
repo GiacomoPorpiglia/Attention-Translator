@@ -29,7 +29,9 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     decoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), y, torch.tensor([eos_token_id])]) for y in decoder_inputs]
     decoder_inputs  = pad_sequence(decoder_inputs, batch_first=True, padding_value=pad_token_id)
 
-    length = min(max_length, max(len(x) for x in encoder_inputs), max(len(y) for y in decoder_inputs))
+    encoder_len = encoder_inputs.size(1)
+    decoder_len = decoder_inputs.size(1)
+    length = min(max_length, max(encoder_len, decoder_len))
     if force_max_length:
         length = max_length
 
@@ -293,7 +295,7 @@ if __name__ == "__main__":
 
 
     
-    dataset = PhrasesDataset(df, loaded_tokenizer)
+    dataset = PhrasesDataset(df, loaded_tokenizer, config.max_seq_len)
     train_len = int(len(dataset) * 0.9)
     val_len = len(dataset) - train_len
 
@@ -309,7 +311,7 @@ if __name__ == "__main__":
     decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
-    optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.lr, weight_decay=config.weight_decay)
+    optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
 
 
 
