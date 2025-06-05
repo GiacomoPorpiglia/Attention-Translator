@@ -192,7 +192,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
         encoder.train()
         decoder.train()
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         total_loss = 0
         loss_for_examination = 0
         for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
@@ -311,8 +311,13 @@ if __name__ == "__main__":
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
     decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
 
-    #encoder = torch.compile(encoder)
-    #decoder = torch.compile(decoder)
+    if hasattr(torch, 'compile'): # Check for PyTorch 2.0+
+        print("Attempting to compile models...")
+        encoder = torch.compile(encoder)
+        decoder = torch.compile(decoder)
+        print("Models compiled (or compilation skipped if not supported).")
+    else:
+        print("torch.compile not available. Consider upgrading PyTorch for potential speedups.")
 
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
