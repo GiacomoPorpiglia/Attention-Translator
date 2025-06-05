@@ -310,6 +310,7 @@ if __name__ == "__main__":
     encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
     decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
     if hasattr(torch, 'compile'): # Check for PyTorch 2.0+
         print("Attempting to compile models...")
@@ -319,7 +320,6 @@ if __name__ == "__main__":
     else:
         print("torch.compile not available. Consider upgrading PyTorch for potential speedups.")
 
-    print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
     optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
 
