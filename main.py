@@ -311,8 +311,8 @@ if __name__ == "__main__":
 
     train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
 
-    dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=4, pin_memory=True)
-    dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=4, pin_memory=True)
+    dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=8, pin_memory=True)
+    dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=8, pin_memory=True)
 
 
     encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
