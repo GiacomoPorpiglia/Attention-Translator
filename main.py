@@ -192,7 +192,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
         encoder.train()
         decoder.train()
-        optimizer.zero_grad(set_to_none=True)
+        optimizer.zero_grad()
         total_loss = 0
         loss_for_examination = 0
         for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
@@ -224,7 +224,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
             ### grad accumulation
             if batch_idx%config.grad_acc_steps==0:
                 optimizer.step()
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True)
 
                 # Update learning rate
                 lr = get_lr(iter_num)
