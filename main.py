@@ -208,6 +208,14 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 print(f"Temp loss: {(loss_for_examination/1000):.4f}")
                 loss_for_examination = 0
 
+                checkpoint = {
+                    'encoder_state_dict': encoder.state_dict(),
+                    'decoder_state_dict': decoder.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'epoch': epoch + 1,
+                }
+                save_checkpoint(checkpoint, f"checkpoint_epoch_{epoch+1}.pth")
+
             encoder_input_ids = batch['encoder_input_ids'].to(device)
             encoder_attention_mask = batch['encoder_attention_mask'].to(device)
             decoder_input_ids = batch['decoder_input_ids'].to(device)
