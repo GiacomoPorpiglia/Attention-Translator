@@ -29,7 +29,7 @@ def train_tokenizer(df):
 
     trainer = trainers.BpeTrainer(
         special_tokens=special_tokens, # Re-iterate special tokens here
-        vocab_size=10000, # Desired vocabulary size
+        vocab_size=20000, # Desired vocabulary size
         min_frequency=10, # Minimum frequency for a token to be included
     )
 

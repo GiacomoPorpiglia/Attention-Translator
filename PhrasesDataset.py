@@ -13,9 +13,12 @@ def is_latin(text):
     
 class PhrasesDataset(Dataset):
     
-    def __init__(self, df, tokenizer, max_length):
+    def __init__(self, df, tokenizer, max_seq_len):
 
-        self.max_length = max_length
+        self.max_seq_len = max_seq_len
+
+        self.data = []
+        self.tokenizer = tokenizer
 
         # Apply the pattern to both columns
         df = df.dropna(subset=['en', 'fr'])
@@ -23,29 +26,28 @@ class PhrasesDataset(Dataset):
     
         # Apply the pattern to both columns
         mask = df['en'].apply(is_latin) & df['fr'].apply(is_latin)
-        clean_df = df[mask].reset_index(drop=True)
+        df = df[mask].reset_index(drop=True)
         
-        self.df = clean_df
-        self.tokenizer = tokenizer
+        for _, row in df.iterrows():
+            en_tokens = tokenizer.encode(row['en']).ids
+            fr_tokens = tokenizer.encode(row['fr']).ids
+            
+            ### -2 is because here there aren't the BOS and EOS tokens, for which we want to keep space.
+            if len(en_tokens) <= max_seq_len-2 and len(fr_tokens) <= max_seq_len-2:
+                self.data.append((en_tokens, fr_tokens))
         
         
     def __len__(self):
-        return self.df.shape[0]
+        return len(self.data)
 
 
     def __getitem__(self, idx):
 
-        en_encoded = self.tokenizer.encode(self.df.iloc[idx]['en']).ids
-        fr_encoded = self.tokenizer.encode(self.df.iloc[idx]['fr']).ids
 
-        # Truncate if longer than max_length
-        if len(en_encoded) > self.max_length-2:
-            en_encoded = en_encoded[:self.max_length-2] # -2 is to give space for BOS and EOS tokens
-        if len(fr_encoded) > self.max_length-2:
-            fr_encoded = fr_encoded[:self.max_length-2]
+        en_encoded, fr_encoded = self.data[idx]
 
-        en_encoding = torch.tensor(en_encoded, dtype=torch.long)
-        fr_encoding = torch.tensor(fr_encoded, dtype=torch.long)
+        en_tensor = torch.tensor(en_encoded, dtype=torch.long)
+        fr_tensor = torch.tensor(fr_encoded, dtype=torch.long)
 
-        return en_encoding, fr_encoding
+        return en_tensor, fr_tensor
         

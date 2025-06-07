@@ -1,6 +1,6 @@
-embd_dim = 768
+embd_dim = 512
 
-max_seq_len = 256
+max_seq_len = 128
 
 batch_size = 1024
 mini_batch_size = 64

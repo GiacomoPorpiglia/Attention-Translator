@@ -46,7 +46,7 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     # decoder_targets = torch.stack([torch.cat([x[1:], torch.tensor([pad_token_id])]) for x in decoder_inputs], dim=0)
     decoder_targets = decoder_inputs[:, 1:].clone()
     decoder_targets = torch.nn.functional.pad(decoder_targets, (0, 1), value=pad_token_id)
-    decoder_targets[decoder_targets == pad_token_id] = -100
+    decoder_targets[decoder_targets == pad_token_id] = -100 # set to -100 where the value to predict is pad. These tokens will be ignored in loss calculation
 
     
 
@@ -54,9 +54,6 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     encoder_input_mask  = (encoder_inputs != pad_token_id).long()
     decoder_mask        = (decoder_inputs != pad_token_id).long()
 
-    # For labels, replace pad_token_id with -100 so loss ignores them
-
-    decoder_targets[decoder_targets == pad_token_id] = -100
 
     return {
       'encoder_input_ids':           encoder_inputs,
@@ -297,14 +294,13 @@ if __name__ == "__main__":
     # Download latest version
     path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
     print("Path to dataset files:", path)
-    df = pd.read_csv(path + "/en-fr.csv").head(1000)
+    df = pd.read_csv(path + "/en-fr.csv")
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device: ", device)
 
 
-    
     dataset = PhrasesDataset(df, loaded_tokenizer, config.max_seq_len)
     train_len = int(len(dataset) * 0.9)
     val_len = len(dataset) - train_len
@@ -320,9 +316,9 @@ if __name__ == "__main__":
     dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
 
 
-    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
     if hasattr(torch, 'compile'): # Check for PyTorch 2.0+

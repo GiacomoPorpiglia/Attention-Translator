@@ -145,7 +145,7 @@ class Encoder(nn.Module):
         self.fc1_out = nn.Linear(dim, dim, bias=False)
         self.dropout2 = nn.Dropout(0.25)
 
-        self.apply(self._init_weights_)
+        self.apply(self._init_weights)
 
 
 
