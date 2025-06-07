@@ -7,7 +7,7 @@ from model import Encoder, Decoder
 from torch.nn.utils.rnn import pad_sequence
 import torch.optim as optim
 from tqdm import tqdm
-from datasets import load_dataset
+from BatchSampler import BucketBatchSampler
 import pandas as pd
 import math
 
@@ -311,19 +311,23 @@ if __name__ == "__main__":
 
     train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
 
-    dataloader_train = DataLoader(train_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=8, pin_memory=True)
-    dataloader_val = DataLoader(val_dataset, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2),  num_workers=8, pin_memory=True)
+    train_sampler = BucketBatchSampler(train_dataset, config.batch_size, config.bucket_size)
+    val_sampler   = BucketBatchSampler(val_dataset,   config.batch_size, config.bucket_size)
 
 
-    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    dataloader_train = DataLoader(train_dataset, batch_sampler=train_sampler, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
+    dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
+
+
+    encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    decoder = Decoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
     if hasattr(torch, 'compile'): # Check for PyTorch 2.0+
         print("Attempting to compile models...")
-        encoder = torch.compile(encoder)
-        decoder = torch.compile(decoder)
+        #encoder = torch.compile(encoder)
+        #decoder = torch.compile(decoder)
         print("Models compiled (or compilation skipped if not supported).")
     else:
         print("torch.compile not available. Consider upgrading PyTorch for potential speedups.")

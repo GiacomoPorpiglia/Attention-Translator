@@ -47,5 +47,5 @@ class PhrasesDataset(Dataset):
         en_encoding = torch.tensor(en_encoded, dtype=torch.long)
         fr_encoding = torch.tensor(fr_encoded, dtype=torch.long)
 
-        return en_encoding, fr_encoding
+        return en_encoding, fr_encoding, len(en_encoding), len(fr_encoding)
         

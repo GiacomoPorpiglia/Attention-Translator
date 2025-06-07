@@ -4,6 +4,7 @@ max_seq_len = 256
 
 batch_size = 1024
 mini_batch_size = 64
+bucket_size = mini_batch_size*20
 grad_acc_steps = batch_size // mini_batch_size
 start_lr = 1e-4
 min_lr = 1e-5
