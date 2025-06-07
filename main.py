@@ -268,8 +268,9 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
                 # Calculate accuracy
                 predicted = torch.argmax(output, dim=-1)
-                correct += (predicted == labels).sum().item()
-                total   += labels.numel() - (labels == -100).sum().item()
+                mask = labels != -100
+                correct += ((predicted == labels) & mask).sum().item()
+                total += mask.sum().item()
             accuracy = correct / total if total > 0 else 0
 
         avg_val_loss = total_val_loss / len(dataloader_val)
@@ -296,7 +297,7 @@ if __name__ == "__main__":
     # Download latest version
     path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
     print("Path to dataset files:", path)
-    df = pd.read_csv(path + "/en-fr.csv")
+    df = pd.read_csv(path + "/en-fr.csv").head(1000)
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -311,12 +312,12 @@ if __name__ == "__main__":
 
     train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
 
-    train_sampler = BucketBatchSampler(train_dataset, config.batch_size, config.bucket_size)
-    val_sampler   = BucketBatchSampler(val_dataset,   config.batch_size, config.bucket_size)
+    train_sampler = BucketBatchSampler(train_dataset, config.mini_batch_size, config.bucket_size)
+    val_sampler   = BucketBatchSampler(val_dataset,   config.mini_batch_size, config.bucket_size)
 
 
-    dataloader_train = DataLoader(train_dataset, batch_sampler=train_sampler, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
-    dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, batch_size=config.mini_batch_size, shuffle=True, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
+    dataloader_train = DataLoader(train_dataset, batch_sampler=train_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
+    dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
 
 
     encoder = Encoder(num_embeddings=10000, num_heads_per_block=4, num_blocks=4, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)

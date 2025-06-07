@@ -145,6 +145,18 @@ class Encoder(nn.Module):
         self.fc1_out = nn.Linear(dim, dim, bias=False)
         self.dropout2 = nn.Dropout(0.25)
 
+        self.apply(self._init_weights_)
+
+
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0, std=0.02)
+
     def forward(self, x, attention_mask):
         x = self.encoder(x)
         x = self.dropout1(self.positional_encoder(x))
@@ -174,6 +186,17 @@ class Decoder(nn.Module):
         self.layer_norm = nn.LayerNorm(dim)
         self.dropout2 = nn.Dropout(0.25)
         self.fc1_out = nn.Linear(dim, num_embeddings, bias=False)
+
+        self.apply(self._init_weights)
+
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0, std=0.02)
 
     def forward(self, x, attention_mask, encoder_output):
         x = self.encoder(x)
