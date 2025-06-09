@@ -148,9 +148,9 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         # Generate output one token at a time, until EOS token is generated or max length is reached
         output = torch.tensor([bos_token_id], dtype=torch.long, device=device).view(1, 1)  # Initialize output tensor
         for i in range(config.max_seq_len-1):
-            decoder_inputs, decoder_attention = add_pad_starting_from(decoder_input_ids, decoder_attention_mask, i+1, pad_token_id=pad_token_id)
+            decoder_inputs, decoder_attention_mask_padded = add_pad_starting_from(decoder_input_ids, decoder_attention_mask, i+1, pad_token_id=pad_token_id)
 
-            output_logits = decoder(decoder_inputs, decoder_attention, encoding)
+            output_logits = decoder(decoder_inputs, decoder_attention_mask_padded, encoder_attention_mask, encoding)
             # Get the next token's logits
             last_token_logits = output_logits[:, i, :]  # [B, vocab_size]
             next_token = last_token_logits.argmax(dim=-1).unsqueeze(1)  # [B, 1]
@@ -225,7 +225,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
             labels = batch['labels'].to(device)
 
             encoding = encoder(encoder_input_ids, encoder_attention_mask)
-            output_logits =  decoder(decoder_input_ids, decoder_attention_mask, encoding)
+            output_logits =  decoder(decoder_input_ids, decoder_attention_mask, encoder_attention_mask, encoding)
                
 
             loss = criterion(output_logits.view(-1, output_logits.size(-1)), labels.view(-1))
@@ -263,7 +263,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 labels = batch['labels'].to(device)
 
                 encoding = encoder(encoder_input_ids, encoder_attention_mask)
-                output = decoder(decoder_input_ids, decoder_attention_mask, encoding)
+                output = decoder(decoder_input_ids, decoder_attention_mask, encoder_attention_mask, encoding)
 
                 loss = criterion(output.view(-1, output.size(-1)), labels.view(-1))
                 total_val_loss += loss.item()
