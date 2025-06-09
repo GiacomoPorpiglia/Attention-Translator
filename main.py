@@ -163,10 +163,15 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
         # Decode the output tokens
         output_tokens = output.squeeze().tolist()
-        fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
+        tokens = tokenizer.convert_ids_to_tokens(output_tokens)
+
+        # Reconstruct string manually, converting Ġ to space
+        reconstructed_output = "".join(
+            [token.replace("Ġ", " ") if token.startswith("Ġ") else token for token in tokens]
+        )
 
     print(f"Input english text: {en}")
-    print(f"Output french text: {fr_decoded}")
+    print(f"Output french text: {reconstructed_output}")
 
 
 
@@ -294,7 +299,7 @@ if __name__ == "__main__":
     # Download latest version
     path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
     print("Path to dataset files:", path)
-    df = pd.read_csv(path + "/en-fr.csv")
+    df = pd.read_csv(path + "/en-fr.csv").head(1000000)
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

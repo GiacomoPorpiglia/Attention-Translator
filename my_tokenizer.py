@@ -20,7 +20,7 @@ tokenizer_path = "tokenizer.json"
 def train_tokenizer(df):
 
     tokenizer = Tokenizer(models.BPE(unk_token="<unk>"))
-    tokenizer.pre_tokenizer =pre_tokenizers.Whitespace()
+    tokenizer.pre_tokenizer =pre_tokenizers.ByteLevel()
 
     special_tokens = ["<pad>", "<bos>", "<eos>", "<unk>"]
     tokenizer.add_special_tokens(special_tokens)
