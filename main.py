@@ -10,9 +10,7 @@ from tqdm import tqdm
 from BatchSampler import BucketBatchSampler
 import pandas as pd
 import math
-
 import config
-
 import kagglehub
 
 
@@ -20,6 +18,12 @@ import kagglehub
 
 def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len, force_max_length=False):
     encoder_inputs, decoder_inputs = zip(*batch)
+
+    if len(encoder_inputs) > max_length-2:
+        encoder_inputs = encoder_inputs[:, :max_length-2]
+    
+    if len(decoder_inputs) > max_length-2:
+        decoder_inputs = decoder_inputs[:, :max_length-2]
 
     # [BOS,..., ..., EOS, (PAD, PAD)]
     encoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), x, torch.tensor([eos_token_id])]) for x in encoder_inputs]
@@ -29,23 +33,12 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     decoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), y, torch.tensor([eos_token_id])]) for y in decoder_inputs]
     decoder_inputs  = pad_sequence(decoder_inputs, batch_first=True, padding_value=pad_token_id)
 
-    encoder_len = encoder_inputs.size(1)
-    decoder_len = decoder_inputs.size(1)
-    length = min(max_length, max(encoder_len, decoder_len))
-    if force_max_length:
-        length = max_length
-
-    if encoder_inputs.size(1) < length:
-        pad_size = length - encoder_inputs.size(1)
-        encoder_inputs = torch.nn.functional.pad(encoder_inputs, (0, pad_size), value=pad_token_id)
-
-    if decoder_inputs.size(1) < length:
-        pad_size = length - decoder_inputs.size(1)
-        decoder_inputs = torch.nn.functional.pad(decoder_inputs, (0, pad_size), value=pad_token_id)
+    # encoder_len = encoder_inputs.size(1)
+    # decoder_len = decoder_inputs.size(1)
 
     # decoder_targets = torch.stack([torch.cat([x[1:], torch.tensor([pad_token_id])]) for x in decoder_inputs], dim=0)
     decoder_targets = decoder_inputs[:, 1:].clone()
-    decoder_targets = torch.nn.functional.pad(decoder_targets, (0, 1), value=pad_token_id)
+    decoder_targets = torch.cat((decoder_targets, torch.full(size=(decoder_targets.size(0), 1),fill_value=pad_token_id)), dim=1)
     decoder_targets[decoder_targets == pad_token_id] = -100 # set to -100 where the value to predict is pad. These tokens will be ignored in loss calculation
 
     
@@ -139,8 +132,6 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         
         encoder_input_ids = batch['encoder_input_ids'].to(device)
         encoder_attention_mask = batch['encoder_attention_mask'].to(device)
-        decoder_input_ids = batch['decoder_input_ids'].to(device)
-        decoder_attention_mask = batch['decoder_attention_mask'].to(device)
 
         # Encode the input
         encoding = encoder(encoder_input_ids, encoder_attention_mask)
@@ -157,7 +148,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
             output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
             
             # Get the next token's logits (at the current position)
-            next_token_logits = output_logits[0, len(output_tokens) - 1, :]
+            next_token_logits = output_logits[0, len(output_tokens), :]
             next_token = next_token_logits.argmax().item()
             
             output_tokens.append(next_token)
@@ -191,6 +182,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
     decoder.to(device)
 
     iter_num = 0
+
     for epoch in range(num_epochs):
 
         encoder.train()
@@ -198,8 +190,8 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
         optimizer.zero_grad()
         total_loss = 0
         loss_for_examination = 0
-        for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
 
+        for batch_idx, batch in tqdm(enumerate(dataloader_train), total=len(dataloader_train), desc=f"Epoch {epoch+1}/{num_epochs}"):
 
             ### print current translation of the test phrase
             if batch_idx%1000 == 1:
@@ -228,12 +220,13 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                
 
             loss = criterion(output_logits.view(-1, output_logits.size(-1)), labels.view(-1))
+            loss = loss / config.grad_acc_steps
             loss.backward()
 
             ### grad accumulation
             if (batch_idx+1)%config.grad_acc_steps==0:
                 optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
+                optimizer.zero_grad()
 
                 # Update learning rate
                 lr = get_lr(iter_num)
@@ -320,9 +313,9 @@ if __name__ == "__main__":
     dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
 
 
-    encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    encoder = Encoder(num_embeddings=20000, num_heads_per_block=6, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    decoder = Decoder(num_embeddings=20000, num_heads_per_block=6, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
 
@@ -331,8 +324,8 @@ if __name__ == "__main__":
 
 
     
-    checkpoint = torch.load("checkpoint_epoch_4.pth")
-    load_checkpoint(encoder, decoder, optimizer, checkpoint)
+    # checkpoint = torch.load("checkpoint_epoch_4.pth")
+    # load_checkpoint(encoder, decoder, optimizer, checkpoint)
 
     test_text = {'en': "One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings.",
                 'fr': "L'un des symboles animaux les plus largement reconnus dans la culture humaine, le lion a été largement représenté dans des sculptures et des peintures."}

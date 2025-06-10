@@ -3,6 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from positional_encoder import PositionalEncoder
 
+
+"""
+Non causal self attention block to use in the encoder, where every token can attend to all others
+"""
 class NonCausalSelfAttentionBlock(nn.Module):
     def __init__(self, model_dim, num_heads, sequence_length_max):
         super(NonCausalSelfAttentionBlock, self).__init__()
@@ -70,8 +74,9 @@ class NonCausalSelfAttentionBlock(nn.Module):
         return out
     
 
-
-
+"""
+Causal self-attention block to use in the decoder, where attention must be causal
+"""
 class CausalAttentionBlock(nn.Module):
     def __init__(self, model_dim, num_heads, sequence_length_max):
         super(CausalAttentionBlock, self).__init__()
@@ -147,7 +152,11 @@ class CausalAttentionBlock(nn.Module):
         return out
     
 
+"""
+Cross-attention block between encoder output and decoder's heads' outputs.
+K and V are obtained from the encoder's output, while Q is obtained from the head's input.
 
+"""
 class CrossAttentionBlock(nn.Module):
     def __init__(self, model_dim, num_heads, sequence_length_max):
         super(CrossAttentionBlock, self).__init__()
@@ -175,12 +184,13 @@ class CrossAttentionBlock(nn.Module):
     
     def forward(self, x, encoder_attention_mask, encoder_output):
         
-        B, T, C = x.shape
+        B, T_dec, C = x.shape
+        _, T_enc, _ = encoder_output.shape
 
         ### adjust attention mask, initially [B, T]
 
-        attn_mask = (encoder_attention_mask == 1)     # [B, T], True for tokens we want to take part into attention
-        attn_mask = attn_mask.view(B, 1, 1, T)
+        attn_mask = (encoder_attention_mask == 1)     # [B, T_enc], True for tokens we want to take part into attention
+        attn_mask = attn_mask.view(B, 1, 1, T_enc)
 
         
         q = self.query(x) ### [B, T, H] (it comes from [B, T, C] dot [C, head_size] --> [B, T, H])
@@ -188,32 +198,30 @@ class CrossAttentionBlock(nn.Module):
         v = self.value(encoder_output)
         
         # Split into multiple heads
-        q = q.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # [B, num_heads, T, head_dim]
-        k = k.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # [B, num_heads, T, head_dim]
-        v = v.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # [B, num_heads, T, head_dim]
+        q = q.view(B, T_dec, self.num_heads, self.head_dim).transpose(1, 2)  # [B, num_heads, T_dec, head_dim]
+        k = k.view(B, T_enc, self.num_heads, self.head_dim).transpose(1, 2)  # [B, num_heads, T_enc, head_dim]
+        v = v.view(B, T_enc, self.num_heads, self.head_dim).transpose(1, 2)  # [B, num_heads, T_enc, head_dim]
 
         if self.flash:
 
-            attn_mask4 = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
-            
-            attn_mask = attn_mask4
+            attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1)  # [B, num_heads, T_dec, T_enc]
 
             out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
         else:
 
-            correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T, T]
+            correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T_dec, T_enc]
             
-            attn_mask4 = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1)  # [B, num_heads, T_dec, T_enc]
             
-            correlation = correlation.masked_fill(~attn_mask4, float('-inf'))
-            correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T, T]
+            correlation = correlation.masked_fill(~attn_mask, float('-inf'))
+            correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T_dec, T_enc]
             correlation = self.dropout(correlation)
 
             ### output of self attention
-            ### [B, num_heads, T, T] dot [B, num_heads, T, heads_dim] =  [B, num_heads, T, head_dim]
+            ### [B, num_heads, T_dec, T_enc] dot [B, num_heads, T_enc, heads_dim] =  [B, num_heads, T_dec, head_dim]
             out = correlation @ v 
 
-        out = out.transpose(1, 2).contiguous().view(B, T, C) ### [B, T, num_heads, head_dim] --> [B, T, C]
+        out = out.transpose(1, 2).contiguous().view(B, T_dec, C) ### [B, T_dec, num_heads, head_dim] --> [B, T_dec, C]
         out = self.resid_dropout(self.c_proj(out))
 
         return out
