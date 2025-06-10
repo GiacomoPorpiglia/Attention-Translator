@@ -264,13 +264,16 @@ class DecoderTransformerBlock(nn.Module):
         self.cross_attention = CrossAttentionBlock(model_dim, num_heads, sequence_length)  
 
         self.norm2 = nn.LayerNorm(model_dim)
+
+        
+        self.norm3 = nn.LayerNorm(model_dim)
         self.mlp = MLPLayer(model_dim)
 
 
     def forward(self, x, decoder_attention_mask, encoder_attention_mask, encoder_output):
         x = x + self.self_attention(self.norm1(x), decoder_attention_mask)
-        x = x + self.cross_attention(self.norm2(x), encoder_attention_mask)
-        x = x + self.mlp(self.norm2(x))
+        x = x + self.cross_attention(self.norm2(x), encoder_attention_mask, encoder_output)
+        x = x + self.mlp(self.norm3(x))
         return x
 
 

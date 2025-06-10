@@ -145,33 +145,34 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         # Encode the input
         encoding = encoder(encoder_input_ids, encoder_attention_mask)
 
-        # Generate output one token at a time, until EOS token is generated or max length is reached
-        output = torch.tensor([bos_token_id], dtype=torch.long, device=device).view(1, 1)  # Initialize output tensor
-        for i in range(config.max_seq_len-1):
-            decoder_inputs, decoder_attention_mask_padded = add_pad_starting_from(decoder_input_ids, decoder_attention_mask, i+1, pad_token_id=pad_token_id)
-
-            output_logits = decoder(decoder_inputs, decoder_attention_mask_padded, encoder_attention_mask, encoding)
-            # Get the next token's logits
-            last_token_logits = output_logits[:, i, :]  # [B, vocab_size]
-            next_token = last_token_logits.argmax(dim=-1).unsqueeze(1)  # [B, 1]
+        output_tokens = [bos_token_id]
+        
+        for i in range(config.max_seq_len - 1):
+            # Create decoder input with current tokens
+            decoder_input = torch.tensor([output_tokens + [pad_token_id] * (config.max_seq_len - len(output_tokens))], 
+                                       dtype=torch.long, device=device)
+            decoder_mask = torch.tensor([[1] * len(output_tokens) + [0] * (config.max_seq_len - len(output_tokens))], 
+                                      dtype=torch.long, device=device)
             
-            output = torch.cat((output, next_token), dim=1)  # Append the next token to the output
-
-            decoder_input_ids[:, i+1] = next_token[:, 0]  # Update the decoder input ids
-            if(next_token.item() == eos_token_id):
+            output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
+            
+            # Get the next token's logits (at the current position)
+            next_token_logits = output_logits[0, len(output_tokens) - 1, :]
+            next_token = next_token_logits.argmax().item()
+            
+            output_tokens.append(next_token)
+            
+            if next_token == eos_token_id:
                 break
 
-        # Decode the output tokens
-        output_tokens = output.squeeze().tolist()
-        tokens = tokenizer.convert_ids_to_tokens(output_tokens)
+        # fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
+        # Decode the output tokensMore actions
+        # output_tokens = output.squeeze().tolist()
+        fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
+        fr_encoded = fr_encoded.replace(" ", "").replace("Ġ", " ")
 
-        # Reconstruct string manually, converting Ġ to space
-        reconstructed_output = "".join(
-            [token.replace("Ġ", " ") if token.startswith("Ġ") else token for token in tokens]
-        )
-
-    print(f"Input english text: {en}")
-    print(f"Output french text: {reconstructed_output}")
+        print(f"Input english text: {en}")
+        print(f"Output french text: {fr_decoded}")
 
 
 
@@ -185,7 +186,7 @@ def get_lr(iter_num):
 
 
 
-def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, device="cpu", num_epochs=100):
+def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, test_text, device="cpu", num_epochs=100):
     encoder.to(device)
     decoder.to(device)
 
@@ -202,8 +203,6 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
             ### print current translation of the test phrase
             if batch_idx%1000 == 1:
-                test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
-                             'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
                 test(test_text, encoder, decoder, loaded_tokenizer, device)
                 encoder.train()
                 decoder.train()
@@ -232,7 +231,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
             loss.backward()
 
             ### grad accumulation
-            if batch_idx%config.grad_acc_steps==0:
+            if (batch_idx+1)%config.grad_acc_steps==0:
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
 
@@ -326,21 +325,17 @@ if __name__ == "__main__":
     decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
-    if hasattr(torch, 'compile'): # Check for PyTorch 2.0+
-        print("Attempting to compile models...")
-        #encoder = torch.compile(encoder)
-        #decoder = torch.compile(decoder)
-        print("Models compiled (or compilation skipped if not supported).")
-    else:
-        print("torch.compile not available. Consider upgrading PyTorch for potential speedups.")
 
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
     optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
 
 
+    
+    checkpoint = torch.load("checkpoint_epoch_4.pth")
+    load_checkpoint(encoder, decoder, optimizer, checkpoint)
 
-    test_text = {'en': "Hello, how are you? I am fine, thank you! Have you heard from John?",
-                     'fr': "Bonjour, comment ça va ? Je vais bien, merci ! As-tu des nouvelles de John ?"}
+    test_text = {'en': "One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings.",
+                'fr': "L'un des symboles animaux les plus largement reconnus dans la culture humaine, le lion a été largement représenté dans des sculptures et des peintures."}
     test(test_text, encoder, decoder, loaded_tokenizer, device=device)
 
-    train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, device=device, num_epochs=100 )
+    train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, test_text, device=device, num_epochs=100 )
