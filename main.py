@@ -169,7 +169,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         # Decode the output tokensMore actions
         # output_tokens = output.squeeze().tolist()
         fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
-        fr_encoded = fr_encoded.replace(" ", "").replace("Ġ", " ")
+        fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
 
         print(f"Input english text: {en}")
         print(f"Output french text: {fr_decoded}")
