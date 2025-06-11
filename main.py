@@ -128,7 +128,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
             output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
             
             # Get the next token's logits (at the current position)
-            next_token_logits = output_logits[0, len(output_tokens), :]
+            next_token_logits = output_logits[0, len(output_tokens)-1, :]
             next_token = next_token_logits.argmax().item()
             
             output_tokens.append(next_token)
