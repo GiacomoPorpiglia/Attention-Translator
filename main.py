@@ -19,11 +19,8 @@ import kagglehub
 def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len, force_max_length=False):
     encoder_inputs, decoder_inputs = zip(*batch)
 
-    if len(encoder_inputs) > max_length-2:
-        encoder_inputs = encoder_inputs[:, :max_length-2]
-    
-    if len(decoder_inputs) > max_length-2:
-        decoder_inputs = decoder_inputs[:, :max_length-2]
+    encoder_inputs = [x[:max_length-2] if len(x) > max_length-2 else x for x in encoder_inputs]
+    decoder_inputs = [x[:max_length-2] if len(x) > max_length-2 else x for x in decoder_inputs]
 
     # [BOS,..., ..., EOS, (PAD, PAD)]
     encoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), x, torch.tensor([eos_token_id])]) for x in encoder_inputs]
