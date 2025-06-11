@@ -44,15 +44,15 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     
 
     # Build attention masks (1 where token ≠ pad, 0 where token == pad)
-    encoder_input_mask  = (encoder_inputs != pad_token_id).long()
-    decoder_mask        = (decoder_inputs != pad_token_id).long()
+    encoder_attention_mask  = (encoder_inputs != pad_token_id).long()
+    decoder_attention_mask  = (decoder_inputs != pad_token_id).long()
 
 
     return {
       'encoder_input_ids':           encoder_inputs,
-      'encoder_attention_mask':      encoder_input_mask,
+      'encoder_attention_mask':      encoder_attention_mask,
       'decoder_input_ids':   decoder_inputs,    # your decoder uses teacher forcing
-      'decoder_attention_mask': decoder_mask,
+      'decoder_attention_mask': decoder_attention_mask,
       'labels':              decoder_targets,
       'encoder_lengths': (encoder_inputs != pad_token_id).sum(dim=1),
       'decoder_lengths': (decoder_inputs != pad_token_id).sum(dim=1),
@@ -94,24 +94,6 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
         print("\tX => Something went wrong in loading the checkpoint")
 
 
-### add pad to input and attention mask starting from a given index
-### input and mask are tensors of shape [B, T], where T=config.max_seq_len
-def add_pad_starting_from(decoder_input_ids, decoder_attention_mask, start_index, pad_token_id=0):
-    B, T = decoder_input_ids.size()
-    if start_index >= T:
-        raise ValueError("start_index must be less than T")
-
-    # Create new tensors with padding
-    new_decoder_input_ids = torch.full((B, T), pad_token_id, dtype=torch.long).to(device)
-    new_decoder_attention_mask = torch.zeros((B, T), dtype=torch.long).to(device)
-
-    # Copy the original values up until start_index
-    new_decoder_input_ids[:, :start_index]      = decoder_input_ids[:, :start_index]
-    new_decoder_attention_mask[:, :start_index] = decoder_attention_mask[:, :start_index]
-
-    return new_decoder_input_ids, new_decoder_attention_mask
-    
-
 
 def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_token_id=1, eos_token_id=2):
     encoder.to(device)
@@ -140,11 +122,9 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         
         for i in range(config.max_seq_len - 1):
             # Create decoder input with current tokens
-            decoder_input = torch.tensor([output_tokens + [pad_token_id] * (config.max_seq_len - len(output_tokens))], 
-                                       dtype=torch.long, device=device)
-            decoder_mask = torch.tensor([[1] * len(output_tokens) + [0] * (config.max_seq_len - len(output_tokens))], 
-                                      dtype=torch.long, device=device)
-            
+            decoder_input = torch.tensor([output_tokens], dtype=torch.long, device=device)
+            decoder_mask  = torch.tensor([[1] * len(output_tokens)], dtype=torch.long, device=device)
+
             output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
             
             # Get the next token's logits (at the current position)
@@ -291,7 +271,7 @@ if __name__ == "__main__":
     # Download latest version
     path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
     print("Path to dataset files:", path)
-    df = pd.read_csv(path + "/en-fr.csv").head(1000000)
+    df = pd.read_csv(path + "/en-fr.csv").head(2000000)
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
