@@ -1,11 +1,7 @@
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, normalizers
-from tokenizers.processors import TemplateProcessing
 import os
-from datasets import load_dataset
 import pandas as pd
 import kagglehub
-import unicodedata
-from collections.abc import Iterable
 import regex
 
 pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
