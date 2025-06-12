@@ -37,10 +37,7 @@ class NonCausalSelfAttentionBlock(nn.Module):
         B, T, C = x.shape
 
         ### adjust attention mask, initially [B, T]
-
-        attn_mask = (attention_mask == 1)     # [B, T], True for tokens we want to take part into attention
         attn_mask = attn_mask.view(B, 1, 1, T)
-
         
         q = self.query(x) ### [B, T, H] (it comes from [B, T, C] dot [C, head_size] --> [B, T, H])
         k = self.key(x)   ### [B, T, H]
@@ -60,7 +57,7 @@ class NonCausalSelfAttentionBlock(nn.Module):
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T, T]
             
             attn_mask = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
-            correlation = correlation.masked_fill(~attn_mask, float('-inf'))
+            correlation = correlation.masked_fill(~attn_mask, float('-inf')) # where attn_mask=0, fill with -inf
             correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T, T]
             correlation = self.dropout(correlation)
 
@@ -108,9 +105,6 @@ class CausalAttentionBlock(nn.Module):
         
         B, T, C = x.shape
 
-        ### adjust attention mask, initially [B, T]
-
-        attn_mask = (attention_mask == 1)     # [B, T], True for tokens we want to take part into attention
         attn_mask = attn_mask.view(B, 1, 1, T)
 
         

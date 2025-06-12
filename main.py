@@ -41,8 +41,9 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     
 
     # Build attention masks (1 where token ≠ pad, 0 where token == pad)
-    encoder_attention_mask  = (encoder_inputs != pad_token_id).long()
-    decoder_attention_mask  = (decoder_inputs != pad_token_id).long()
+    ### true for tokens that are not pad --> true for tokens we want to attend
+    encoder_attention_mask  = (encoder_inputs != pad_token_id).bool() 
+    decoder_attention_mask  = (decoder_inputs != pad_token_id).bool()
 
 
     return {
@@ -120,7 +121,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         for i in range(config.max_seq_len - 1):
             # Create decoder input with current tokens
             decoder_input = torch.tensor([output_tokens], dtype=torch.long, device=device)
-            decoder_mask  = torch.tensor([[1] * len(output_tokens)], dtype=torch.long, device=device)
+            decoder_mask  = torch.tensor([[True] * len(output_tokens)], dtype=torch.long, device=device)
 
             output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
             
