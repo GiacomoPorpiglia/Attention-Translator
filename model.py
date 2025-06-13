@@ -37,7 +37,7 @@ class NonCausalSelfAttentionBlock(nn.Module):
         B, T, C = x.shape
 
         ### adjust attention mask, initially [B, T]
-        attn_mask = attn_mask.view(B, 1, 1, T)
+        attn_mask = attention_mask.view(B, 1, 1, T)
         
         q = self.query(x) ### [B, T, H] (it comes from [B, T, C] dot [C, head_size] --> [B, T, H])
         k = self.key(x)   ### [B, T, H]
@@ -50,14 +50,14 @@ class NonCausalSelfAttentionBlock(nn.Module):
 
         if self.flash:
 
-            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1).bool()  # [B, num_heads, T, T]
             out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
         else:
 
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T, T]
             
-            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
-            correlation = correlation.masked_fill(~attn_mask, float('-inf')) # where attn_mask=0, fill with -inf
+            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1).bool()  # [B, num_heads, T, T]
+            correlation = correlation.masked_fill(attn_mask.logical_not(), float('-inf')) # where attn_mask=0, fill with -inf
             correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T, T]
             correlation = self.dropout(correlation)
 
@@ -105,7 +105,7 @@ class CausalAttentionBlock(nn.Module):
         
         B, T, C = x.shape
 
-        attn_mask = attn_mask.view(B, 1, 1, T)
+        attn_mask = attention_mask.view(B, 1, 1, T)
 
         
         q = self.query(x) ### [B, T, H] (it comes from [B, T, C] dot [C, head_size] --> [B, T, H])
@@ -119,19 +119,21 @@ class CausalAttentionBlock(nn.Module):
 
         if self.flash:
 
-            attn_mask4 = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
             # if causal, also exclude future positions
             causal = self.tril[:, :, :T, :T].bool() # True for tokens we want to attention according to causal mask rules
-            attn_mask = attn_mask4 & causal
+            attn_mask = (attn_mask & causal).bool()
 
             out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
         else:
 
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T, T]
             
-            attn_mask4 = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
         
-            correlation = correlation.masked_fill((self.tril[:, :, :T, :T]==0) | ~attn_mask4, float('-inf')) # the mask we pass is where we want to fill with -inf, so the ones we don't want to attend to
+            causal = self.tril[:, :, :T, :T].bool()
+            
+            correlation = correlation.masked_fill(~causal | ~attn_mask, float('-inf')) # the mask we pass is where we want to fill with -inf, so the ones we don't want to attend to
             
             correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T, T]
             correlation = self.dropout(correlation)
@@ -198,16 +200,16 @@ class CrossAttentionBlock(nn.Module):
 
         if self.flash:
 
-            attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1)  # [B, num_heads, T_dec, T_enc]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1).bool() # [B, num_heads, T_dec, T_enc]
 
             out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
         else:
 
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T_dec, T_enc]
             
-            attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1)  # [B, num_heads, T_dec, T_enc]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1).bool()  # [B, num_heads, T_dec, T_enc]
             
-            correlation = correlation.masked_fill(~attn_mask, float('-inf'))
+            correlation = correlation.masked_fill(attn_mask.logical_not(), float('-inf'))
             correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T_dec, T_enc]
             correlation = self.dropout(correlation)
 

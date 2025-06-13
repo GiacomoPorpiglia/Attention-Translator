@@ -16,7 +16,7 @@ import kagglehub
 
 
 
-def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len, force_max_length=False):
+def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len):
     encoder_inputs, decoder_inputs = zip(*batch)
 
     encoder_inputs = [x[:max_length-2] if len(x) > max_length-2 else x for x in encoder_inputs]
@@ -108,7 +108,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         fr_encoding = torch.tensor(tokenizer.encode(fr).ids, dtype=torch.long)
 
         batch = [(en_encoding, fr_encoding)]
-        batch = collate_fn(batch, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id, force_max_length=True)
+        batch = collate_fn(batch, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id)
         
         encoder_input_ids = batch['encoder_input_ids'].to(device)
         encoder_attention_mask = batch['encoder_attention_mask'].to(device)
@@ -236,6 +236,8 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 output = decoder(decoder_input_ids, decoder_attention_mask, encoder_attention_mask, encoding)
 
                 loss = criterion(output.view(-1, output.size(-1)), labels.view(-1))
+
+                loss = loss / config.grad_acc_steps
                 total_val_loss += loss.item()
 
                 # Calculate accuracy
@@ -271,6 +273,9 @@ if __name__ == "__main__":
     print("Path to dataset files:", path)
     df = pd.read_csv(path + "/en-fr.csv").head(2000000)
 
+    for i in range(100):
+        print(df.sample())
+
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device: ", device)
@@ -291,9 +296,9 @@ if __name__ == "__main__":
     dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
 
 
-    encoder = Encoder(num_embeddings=20000, num_heads_per_block=6, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=20000, num_heads_per_block=6, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
 

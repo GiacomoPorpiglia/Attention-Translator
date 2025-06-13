@@ -1,4 +1,4 @@
-embd_dim = 512
+embd_dim = 1024
 
 max_seq_len = 128
 
