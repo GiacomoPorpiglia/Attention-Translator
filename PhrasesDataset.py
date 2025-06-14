@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from my_tokenizer import loaded_tokenizer
 import unicodedata
 import regex
+import random
 
 pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
 
@@ -35,6 +36,11 @@ class PhrasesDataset(Dataset):
             ### -2 is because here there aren't the BOS and EOS tokens, for which we want to keep space.
             if len(en_tokens) <= max_seq_len-2 and len(fr_tokens) <= max_seq_len-2:
                 self.data.append((en_tokens, fr_tokens))
+
+        
+        for i in range(100):
+            rnd = random.choice(self.data)
+            print(rnd[0], "    ", rnd[1])
         
         
     def __len__(self):

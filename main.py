@@ -273,9 +273,6 @@ if __name__ == "__main__":
     print("Path to dataset files:", path)
     df = pd.read_csv(path + "/en-fr.csv").head(2000000)
 
-    for i in range(100):
-        print(df.sample())
-
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device: ", device)
