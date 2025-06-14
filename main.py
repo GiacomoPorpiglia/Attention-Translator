@@ -121,7 +121,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         for i in range(config.max_seq_len - 1):
             # Create decoder input with current tokens
             decoder_input = torch.tensor([output_tokens], dtype=torch.long, device=device)
-            decoder_mask  = torch.tensor([[True] * len(output_tokens)], dtype=torch.long, device=device)
+            decoder_mask  = torch.tensor([[True] * len(output_tokens)], dtype=torch.bool, device=device)
 
             output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
             
@@ -147,6 +147,10 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
 
 def get_lr(iter_num):
+
+    if(iter_num < config.warmup_iters):
+        return config.start_lr * iter_num / config.warmup_iters
+
     if(iter_num < config.lr_decay_steps):
         coeff = math.cos(iter_num / config.lr_decay_steps * math.pi/2)
         return coeff * config.start_lr + (1-coeff) * config.min_lr
@@ -160,6 +164,11 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
     decoder.to(device)
 
     iter_num = 0
+
+    ### set initial learning rate according to scheduler
+    for param_group in optimizer.param_groups:
+        lr = get_lr(1)
+        param_group['lr'] = lr
 
     for epoch in range(num_epochs):
 
@@ -203,7 +212,12 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
             ### grad accumulation
             if (batch_idx+1)%config.grad_acc_steps==0:
-                optimizer.step()
+
+                ### gradient clipping
+                torch.nn.utils.clip_grad_norm_(list(encoder.parameters()) + list(decoder.parameters()), 1.0)
+
+                optimizer.step()      
+
                 optimizer.zero_grad()
 
                 # Update learning rate
@@ -212,8 +226,8 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                     param_group['lr'] = lr
                 iter_num += 1
 
-            total_loss += loss.item()
-            loss_for_examination += loss.item()
+            total_loss += loss.item() * config.grad_acc_steps
+            loss_for_examination += loss.item() * config.grad_acc_steps
 
         avg_loss = total_loss / len(dataloader_train)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}")
@@ -237,7 +251,6 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
                 loss = criterion(output.view(-1, output.size(-1)), labels.view(-1))
 
-                loss = loss / config.grad_acc_steps
                 total_val_loss += loss.item()
 
                 # Calculate accuracy
@@ -293,13 +306,13 @@ if __name__ == "__main__":
     dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
 
 
-    encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=6, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+    decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
     print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
 
-    criterion = nn.CrossEntropyLoss(ignore_index=-100)
+    criterion = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=0.1)
     optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
 
 

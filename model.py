@@ -21,10 +21,10 @@ class NonCausalSelfAttentionBlock(nn.Module):
         self.key   = nn.Linear(model_dim, model_dim, bias=False)
         self.value = nn.Linear(model_dim, model_dim, bias=False)
 
-        self.dropout = nn.Dropout(0.25)
+        self.dropout = nn.Dropout(0.15)
         
         self.c_proj = nn.Linear(model_dim, model_dim, bias=False)
-        self.resid_dropout = nn.Dropout(0.25)
+        self.resid_dropout = nn.Dropout(0.15)
 
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
 
@@ -51,13 +51,13 @@ class NonCausalSelfAttentionBlock(nn.Module):
         if self.flash:
 
             attn_mask = attn_mask.expand(-1, self.num_heads, T, -1).bool()  # [B, num_heads, T, T]
-            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.15 if self.training else 0)
         else:
 
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T, T]
             
             attn_mask = attn_mask.expand(-1, self.num_heads, T, -1).bool()  # [B, num_heads, T, T]
-            correlation = correlation.masked_fill(attn_mask.logical_not(), float('-inf')) # where attn_mask=0, fill with -inf
+            correlation = correlation.masked_fill(~attn_mask, float('-inf')) # where attn_mask=0, fill with -inf
             correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T, T]
             correlation = self.dropout(correlation)
 
@@ -88,10 +88,10 @@ class CausalAttentionBlock(nn.Module):
         self.key   = nn.Linear(model_dim, model_dim, bias=False)
         self.value = nn.Linear(model_dim, model_dim, bias=False)
 
-        self.dropout = nn.Dropout(0.25)
+        self.dropout = nn.Dropout(0.15)
         
         self.c_proj = nn.Linear(model_dim, model_dim, bias=False)
-        self.resid_dropout = nn.Dropout(0.25)
+        self.resid_dropout = nn.Dropout(0.15)
 
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
 
@@ -124,12 +124,12 @@ class CausalAttentionBlock(nn.Module):
             causal = self.tril[:, :, :T, :T].bool() # True for tokens we want to attention according to causal mask rules
             attn_mask = (attn_mask & causal).bool()
 
-            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.15 if self.training else 0)
         else:
 
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T, T]
             
-            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1)  # [B, num_heads, T, T]
+            attn_mask = attn_mask.expand(-1, self.num_heads, T, -1).bool()  # [B, num_heads, T, T]
         
             causal = self.tril[:, :, :T, :T].bool()
             
@@ -167,10 +167,10 @@ class CrossAttentionBlock(nn.Module):
         self.key   = nn.Linear(model_dim, model_dim, bias=False)
         self.value = nn.Linear(model_dim, model_dim, bias=False)
 
-        self.dropout = nn.Dropout(0.25)
+        self.dropout = nn.Dropout(0.15)
         
         self.c_proj = nn.Linear(model_dim, model_dim, bias=False)
-        self.resid_dropout = nn.Dropout(0.25)
+        self.resid_dropout = nn.Dropout(0.15)
 
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
 
@@ -202,14 +202,14 @@ class CrossAttentionBlock(nn.Module):
 
             attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1).bool() # [B, num_heads, T_dec, T_enc]
 
-            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.25 if self.training else 0)
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.15 if self.training else 0)
         else:
 
             correlation = (q @ k.transpose(-2, -1)) * self.head_dim**(-0.5) ### [B, num_heads, T_dec, T_enc]
             
             attn_mask = attn_mask.expand(-1, self.num_heads, T_dec, -1).bool()  # [B, num_heads, T_dec, T_enc]
             
-            correlation = correlation.masked_fill(attn_mask.logical_not(), float('-inf'))
+            correlation = correlation.masked_fill(~attn_mask, float('-inf'))
             correlation = F.softmax(correlation, dim=-1) ### [B, num_heads, T_dec, T_enc]
             correlation = self.dropout(correlation)
 
@@ -231,7 +231,7 @@ class MLPLayer(nn.Module):
         self.fc1 = nn.Linear(model_dim, 4*model_dim, bias=False)
         self.gelu = nn.GELU()
         self.c_proj = nn.Linear(4*model_dim, model_dim, bias=False)
-        self.dropout = nn.Dropout(0.25)
+        self.dropout = nn.Dropout(0.15)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -290,7 +290,7 @@ class Encoder(nn.Module):
 
         self.encoder = nn.Embedding(num_embeddings, dim)
         self.positional_encoder = PositionalEncoder(dim, sequence_length_max)
-        self.dropout1 = nn.Dropout(0.25)
+        self.dropout1 = nn.Dropout(0.15)
 
         assert (dim % num_heads_per_block) == 0, "Embedding size is not divisible by number of heads"
 
@@ -300,7 +300,7 @@ class Encoder(nn.Module):
 
         self.layer_norm = nn.LayerNorm(dim)
         self.fc1_out = nn.Linear(dim, dim, bias=False)
-        self.dropout2 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.15)
 
         self.apply(self._init_weights)
 
@@ -332,7 +332,7 @@ class Decoder(nn.Module):
 
         self.encoder = nn.Embedding(num_embeddings, dim)
         self.positional_encoder = PositionalEncoder(dim, sequence_length_max)
-        self.dropout1 = nn.Dropout(0.25)
+        self.dropout1 = nn.Dropout(0.15)
 
         assert (dim % num_heads_per_block) == 0, "Embedding size is not divisible by number of heads"
 
@@ -341,7 +341,7 @@ class Decoder(nn.Module):
         ])
 
         self.layer_norm = nn.LayerNorm(dim)
-        self.dropout2 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.15)
         self.fc1_out = nn.Linear(dim, num_embeddings, bias=False)
 
         self.apply(self._init_weights)
