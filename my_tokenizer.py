@@ -9,9 +9,7 @@ pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
 def is_latin(text):
     return bool(pattern.fullmatch(text))
 
-
 tokenizer_path = "tokenizer.json"
-
 
 def train_tokenizer(df):
 
@@ -45,11 +43,10 @@ def train_tokenizer(df):
     
 if not os.path.exists(tokenizer_path):
     
-    # Download latest version
+    # Download the dataset
     path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
     df = pd.read_csv(os.path.join(path, "en-fr.csv"))
     
-    print(df.head(10))
     print("Path to dataset files:", path)
 
     train_tokenizer(df)

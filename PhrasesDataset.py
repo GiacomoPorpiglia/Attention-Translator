@@ -48,8 +48,7 @@ class PhrasesDataset(Dataset):
 
 
     def __getitem__(self, idx):
-
-
+        
         en_encoded, fr_encoded = self.data[idx]
 
         en_tensor = torch.tensor(en_encoded, dtype=torch.long)

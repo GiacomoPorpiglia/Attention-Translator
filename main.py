@@ -12,7 +12,7 @@ import pandas as pd
 import math
 import config
 import kagglehub
-
+import argparse
 
 
 
@@ -90,6 +90,7 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
         print("\t=> checkpoint loaded!")
     except:
         print("\tX => Something went wrong in loading the checkpoint")
+        raise RuntimeError
 
 
 
@@ -101,11 +102,9 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
     with torch.no_grad():
         # Tokenize the reaction
-        en = input['en']
-        fr = input['fr']
 
-        en_encoding = torch.tensor(tokenizer.encode(en).ids, dtype=torch.long)
-        fr_encoding = torch.tensor(tokenizer.encode(fr).ids, dtype=torch.long)
+        en_encoding = torch.tensor(tokenizer.encode(input).ids, dtype=torch.long)
+        fr_encoding = torch.tensor([0], dtype=torch.long) ### not important
 
         batch = [(en_encoding, fr_encoding)]
         batch = collate_fn(batch, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id)
@@ -134,25 +133,23 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
             if next_token == eos_token_id:
                 break
 
-        # fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
-        # Decode the output tokensMore actions
-        # output_tokens = output.squeeze().tolist()
         fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
         fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
 
-        print(f"Input english text: {en}")
+        print(f"Input english text: {input}")
         print(f"Output french text: {fr_decoded}")
+        return fr_decoded
 
 
 
 
-def get_lr(iter_num):
+def get_lr(num_iters):
 
-    if(iter_num < config.warmup_iters):
-        return config.start_lr * iter_num / config.warmup_iters
+    if(num_iters < config.warmup_iters):
+        return config.start_lr * num_iters / config.warmup_iters
 
-    if(iter_num < config.lr_decay_steps):
-        coeff = math.cos(iter_num / config.lr_decay_steps * math.pi/2)
+    if(num_iters < config.lr_decay_iters):
+        coeff = math.cos(num_iters / config.lr_decay_iters * math.pi/2)
         return coeff * config.start_lr + (1-coeff) * config.min_lr
     else:
         return config.min_lr
@@ -163,7 +160,7 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
     encoder.to(device)
     decoder.to(device)
 
-    iter_num = 0
+    num_iters = 0
 
     ### set initial learning rate according to scheduler
     for param_group in optimizer.param_groups:
@@ -187,14 +184,6 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 decoder.train()
                 print(f"Temp loss: {(loss_for_examination/1000):.4f}")
                 loss_for_examination = 0
-
-                checkpoint = {
-                    'encoder_state_dict': encoder.state_dict(),
-                    'decoder_state_dict': decoder.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'epoch': epoch + 1,
-                }
-                save_checkpoint(checkpoint, f"checkpoint_epoch_{epoch+1}.pth")
 
             encoder_input_ids = batch['encoder_input_ids'].to(device)
             encoder_attention_mask = batch['encoder_attention_mask'].to(device)
@@ -221,10 +210,10 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 optimizer.zero_grad()
 
                 # Update learning rate
-                lr = get_lr(iter_num)
+                lr = get_lr(num_iters)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
-                iter_num += 1
+                num_iters += 1
 
             total_loss += loss.item() * config.grad_acc_steps
             loss_for_examination += loss.item() * config.grad_acc_steps
@@ -279,49 +268,71 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 # load_checkpoint(encoder, decoder, optimizer, checkpoint)
 
 if __name__ == "__main__":
-    
-    
-    # Download latest version
-    path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
-    print("Path to dataset files:", path)
-    df = pd.read_csv(path + "/en-fr.csv").head(2000000)
+    parser = argparse.ArgumentParser(
+                    prog='Attention Translator')
+    parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train', help='Mode of execution (train/test).')
+    parser.add_argument('checkpoint_path', type=str, help="Relative or absolute checkpoint path to load for testing.")
 
+    args = parser.parse_args()
 
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device: ", device)
 
+    # Download latest version
+    if args.mode == 'train':
 
-    dataset = PhrasesDataset(df, loaded_tokenizer, config.max_seq_len)
-    train_len = int(len(dataset) * 0.9)
-    val_len = len(dataset) - train_len
+        if args.checkpoint_path != None:
+            print("Warning: --checkpoint_path is not a valid parameter for mode=train. Its value will be ignored.")
 
+        path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
+        print("Path to dataset files:", path)
+        df = pd.read_csv(path + "/en-fr.csv").head(3000000)
 
-    train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
-
-    train_sampler = BucketBatchSampler(train_dataset, config.mini_batch_size, config.bucket_size)
-    val_sampler   = BucketBatchSampler(val_dataset,   config.mini_batch_size, config.bucket_size)
-
-
-    dataloader_train = DataLoader(train_dataset, batch_sampler=train_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
-    dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
-
-
-    encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
-    print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-    decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
-    print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
+        dataset = PhrasesDataset(df, loaded_tokenizer, config.max_seq_len)
+        train_len = int(len(dataset) * 0.9)
+        val_len = len(dataset) - train_len
 
 
-    criterion = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=0.1)
-    optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
+        train_dataset, val_dataset = random_split(dataset, [train_len, val_len])
+
+        train_sampler = BucketBatchSampler(train_dataset, config.mini_batch_size, config.bucket_size)
+        val_sampler   = BucketBatchSampler(val_dataset,   config.mini_batch_size, config.bucket_size)
 
 
+        dataloader_train = DataLoader(train_dataset, batch_sampler=train_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
+        dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
+
+
+        encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
+        decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
+
+
+        criterion = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=0.1)
+        optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
+
+        test_text = "One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings."
+        
+        train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, test_text, device=device, num_epochs=100, )
     
-    # checkpoint = torch.load("checkpoint_epoch_4.pth")
-    # load_checkpoint(encoder, decoder, optimizer, checkpoint)
+    elif args.mode == 'test':
 
-    test_text = {'en': "One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings.",
-                'fr': "L'un des symboles animaux les plus largement reconnus dans la culture humaine, le lion a été largement représenté dans des sculptures et des peintures."}
-    test(test_text, encoder, decoder, loaded_tokenizer, device=device)
+        if args.checkpoint_path == None:
+            print("Error: you must specify the --checkpoint_path option in order to load the model to test!")
+            exit(1)
 
-    train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, test_text, device=device, num_epochs=100 )
+        encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
+        decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
+        optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
+        try:
+            load_checkpoint(encoder, decoder, optimizer=optimizer, checkpoint=args.checkpoint_path)
+        except:
+            print("There was an error in loading the checkpoint. Please make sure that the specified path is correct")
+
+        test_text = input("Please enter the english phrase you would like to translate: ")
+
+        test(test_text, encoder, decoder, loaded_tokenizer, device=device)
