@@ -88,7 +88,7 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
         decoder.load_state_dict(checkpoint['decoder_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         print("\t=> checkpoint loaded!")
-    except:
+    except Exception as e:
         print("\tX => Something went wrong in loading the checkpoint")
         raise RuntimeError
 
@@ -135,9 +135,14 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
         fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
         fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
+        try:
+            fixed_utf8_french = fr_decoded.encode('latin1').decode('utf-8')
+        except UnicodeEncodeError as e:
+            print("Can't encode to Latin-1: ", e)
+            fixed_utf8_french = fr_decoded  # fallback if decode fails
 
         print(f"Input english text: {input}")
-        print(f"Output french text: {fr_decoded}")
+        print(f"Output french text: {fixed_utf8_french}")
         return fr_decoded
 
 
@@ -271,7 +276,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                     prog='Attention Translator')
     parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train', help='Mode of execution (train/test).')
-    parser.add_argument('checkpoint_path', type=str, help="Relative or absolute checkpoint path to load for testing.")
+    parser.add_argument('--checkpoint_path', type=str, help="Relative or absolute checkpoint path to load for testing.")
 
     args = parser.parse_args()
 
@@ -329,7 +334,8 @@ if __name__ == "__main__":
         print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
         optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
         try:
-            load_checkpoint(encoder, decoder, optimizer=optimizer, checkpoint=args.checkpoint_path)
+            checkpoint = torch.load(args.checkpoint_path)
+            load_checkpoint(encoder, decoder, optimizer=optimizer, checkpoint=checkpoint)
         except:
             print("There was an error in loading the checkpoint. Please make sure that the specified path is correct")
 
