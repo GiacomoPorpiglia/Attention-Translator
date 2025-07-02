@@ -93,6 +93,22 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
         raise RuntimeError
 
 
+def partial_utf8_repair(token: str) -> str:
+    result = []
+    i = 0
+    while i < len(token):
+        try:
+            # Try to decode 2-character slices (common for UTF-8 misdecoding)
+            repaired = token[i:i+2].encode('latin1').decode('utf-8')
+            result.append(repaired)
+            i += 2
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            # If it can't be repaired, just take one character as-is
+            result.append(token[i])
+            i += 1
+    return ''.join(result)
+
+
 
 def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_token_id=1, eos_token_id=2):
     encoder.to(device)
@@ -138,9 +154,11 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         try:
             fixed_utf8_french = fr_decoded.encode('latin1').decode('utf-8')
         except UnicodeEncodeError as e:
-            print("Can't encode to Latin-1: ", e)
-            fixed_utf8_french = fr_decoded  # fallback if decode fails
+            # print("Can't encode to Latin-1: ", e)
+            fixed_utf8_french = partial_utf8_repair(fr_decoded)
+            # fixed_utf8_french = fr_decoded  # fallback if decode fails
 
+        print("")
         print(f"Input english text: {input}")
         print(f"Output french text: {fixed_utf8_french}")
         return fr_decoded
@@ -338,7 +356,8 @@ if __name__ == "__main__":
             load_checkpoint(encoder, decoder, optimizer=optimizer, checkpoint=checkpoint)
         except:
             print("There was an error in loading the checkpoint. Please make sure that the specified path is correct")
-
+        
+        print("\n\n")
         test_text = input("Please enter the english phrase you would like to translate: ")
 
         test(test_text, encoder, decoder, loaded_tokenizer, device=device)

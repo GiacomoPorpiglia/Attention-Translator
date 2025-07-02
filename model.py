@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from positional_encoder import PositionalEncoder
-
+import warnings
+warnings.filterwarnings("ignore", message=".*was not compiled with flash attention.*")
 
 """
 Non causal self attention block to use in the encoder, where every token can attend to all others
