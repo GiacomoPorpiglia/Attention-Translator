@@ -140,7 +140,15 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
             output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
             
-            # Get the next token's logits (at the current position)
+            ### sample next token with temperature
+            ### disabled becasue the model is not strong enough to handle temperature for now
+            # last_logits = output_logits[0, len(output_tokens)-1, :]
+            # probabilities = torch.nn.functional.softmax(last_logits/config.temperature, dim=-1)
+            # dist = torch.distributions.categorical.Categorical(probs=probabilities)
+            # next_token = dist.sample().item()
+
+            ### Always get token with highest probability 
+            ### Get the next token's logits (at the current position)
             next_token_logits = output_logits[0, len(output_tokens)-1, :]
             next_token = next_token_logits.argmax().item()
             
@@ -153,7 +161,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
         try:
             fixed_utf8_french = fr_decoded.encode('latin1').decode('utf-8')
-        except UnicodeEncodeError as e:
+        except Exception as e:
             # print("Can't encode to Latin-1: ", e)
             fixed_utf8_french = partial_utf8_repair(fr_decoded)
             # fixed_utf8_french = fr_decoded  # fallback if decode fails
