@@ -72,7 +72,7 @@ The script will:
 ```bash
 python main.py --mode test --model_path your_cehckpoint_path.pth
 ```
-
+You can find my trained checkpoint under <i>Releases</i> on the Github repo.
 ## 📁 Project Structure
 
 ```
@@ -139,14 +139,19 @@ Key hyperparameters in `config.py`:
 
 ## 📈 Dataset
 
-The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/datasets/dhruvildave/en-fr-translation-dataset) from Kaggle, containing parallel English-French sentence pairs. The dataset was cleaned to have only Latin characters, and was not used etirely for training cost reasons. Approzimately 3M sentence pairs were used for training.
+The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/datasets/dhruvildave/en-fr-translation-dataset) from Kaggle, containing parallel English-French sentence pairs. The dataset was cleaned to have only Latin characters, and was not used etirely for training cost reasons. Approzimately 4M sentence pairs were used for training.
 
 
 ## 📝 Example Output
 
 ```
 Input english text: One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings.
-Output french text: L'un des symboles animaux les plus largement reconnus dans la culture humaine, le lion a été largement représenté dans des sculptures et des peintures.
+
+(Version 1) -->  Output french text:  l'un des symboles les plus largement reconnus de la culture humaine est celui de l'espèce qui est largement caractérisée dans les sculptures et les peintures.
+
+(Version 2) -->  Output french text:  lâun des symboles animaux les plus largement reconnus dans le domaine de la culture humaine, le lon a été largement décrit dans les sculptures et les peintures.
+
+(Version 3) -->  Output french text:  un des symboles animaux le plus largement reconnus dans la culture humaine, lâor est largement caractérisé par des sculptures et des peintures.
 ```
 
 ## 📄 License
