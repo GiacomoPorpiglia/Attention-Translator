@@ -311,7 +311,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                     prog='Attention Translator')
     parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train', help='Mode of execution (train/test).')
-    parser.add_argument('--checkpoint_path', type=str, help="Relative or absolute checkpoint path to load for testing.")
+    parser.add_argument('--model_path', type=str, help="Relative or absolute checkpoint path to load for testing.")
 
     args = parser.parse_args()
 
@@ -322,8 +322,8 @@ if __name__ == "__main__":
     # Download latest version
     if args.mode == 'train':
 
-        if args.checkpoint_path != None:
-            print("Warning: --checkpoint_path is not a valid parameter for mode=train. Its value will be ignored.")
+        if args.model_path != None:
+            print("Warning: --model_path is not a valid parameter for mode=train. Its value will be ignored.")
 
         path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
         print("Path to dataset files:", path)
@@ -359,8 +359,8 @@ if __name__ == "__main__":
     
     elif args.mode == 'test':
 
-        if args.checkpoint_path == None:
-            print("Error: you must specify the --checkpoint_path option in order to load the model to test!")
+        if args.model_path == None:
+            print("Error: you must specify the --model_path option in order to load the model to test!")
             exit(1)
 
         encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
@@ -369,12 +369,13 @@ if __name__ == "__main__":
         print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
         optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
         try:
-            checkpoint = torch.load(args.checkpoint_path)
+            checkpoint = torch.load(args.model_path)
             load_checkpoint(encoder, decoder, optimizer=optimizer, checkpoint=checkpoint)
         except:
             print("There was an error in loading the checkpoint. Please make sure that the specified path is correct")
         
-        print("\n\n")
-        test_text = input("Please enter the english phrase you would like to translate: ")
+        while(1):
+            print("\n\n")
+            test_text = input("Please enter the english phrase you would like to translate: ")
 
-        test(test_text, encoder, decoder, loaded_tokenizer, device=device)
+            test(test_text, encoder, decoder, loaded_tokenizer, device=device)

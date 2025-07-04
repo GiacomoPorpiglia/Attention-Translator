@@ -1,6 +1,6 @@
 # English-to-French Neural Machine Translation
 
-A PyTorch implementation of a Transformer-based neural machine translation model for English-to-French translation. This project implements the classic encoder-decoder architecture with attention mechanisms from scratch, inspired form the famous paper "Attention Is All You Need".
+A PyTorch implementation of a Transformer-based translation model for English-to-French translation. This project implements the classic encoder-decoder architecture with attention mechanisms from scratch, inspired form the famous paper "Attention Is All You Need".
 
 ## 📋 Requirements
 
@@ -15,24 +15,18 @@ regex
 
 ## 🏗️ Architecture
 
-### Encoder
+### Encoder (21M parameters)
 - Multi-layer Transformer encoder with non-causal self-attention
 - Positional encoding for sequence modeling
 - Layer normalization and residual connections
 - Configurable number of layers and attention heads
 
-### Decoder
+### Decoder (46M parameters)
 - Multi-layer Transformer decoder with:
   - Causal self-attention (masked)
   - Cross-attention to encoder outputs
 - Teacher forcing during training
 - Autoregressive generation during inference
-
-### Key Components
-- **Attention Blocks**: Custom implementation with Flash Attention support
-- **Positional Encoding**: Sinusoidal positional embeddings
-- **MLP Layers**: Feed-forward networks with GELU activation
-- **Custom Tokenizer**: BPE tokenizer trained on the dataset
 
 ## 🚀 Quick Start
 
@@ -117,25 +111,6 @@ Key hyperparameters in `config.py`:
 - **Self-Attention**: Causal masking
 - **Cross-Attention**: Attends to encoder outputs
 - **Output**: Vocabulary distribution via linear projection
-
-## 📊 Training Features
-
-### Learning Rate Scheduling
-- **Warmup Phase**: Linear increase to `start_lr`
-- **Decay Phase**: Cosine decay to `min_lr`
-- **Schedule Function**: Custom implementation in `get_lr()`
-
-### Data Processing
-- **Tokenization**: Custom BPE tokenizer with 20K vocabulary
-- **Filtering**: Latin script filtering for clean data, avoiding non-latin characters
-- **Batching**: Bucket batching by sequence length
-- **Padding**: Dynamic padding with attention masks
-
-### Training Loop
-- **Gradient Accumulation**: Effective batch size scaling
-- **Gradient Clipping**: Prevents exploding gradients
-- **Validation**: Regular evaluation on held-out data
-- **Checkpointing**: Automatic model state saving
 
 ## 📈 Dataset
 
