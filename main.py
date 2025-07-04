@@ -93,20 +93,30 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
         raise RuntimeError
 
 
-def partial_utf8_repair(token: str) -> str:
+def partial_utf8_repair(string: str) -> str:
     result = []
     i = 0
-    while i < len(token):
+    while i < len(string):
         try:
             # Try to decode 2-character slices (common for UTF-8 misdecoding)
-            repaired = token[i:i+2].encode('latin1').decode('utf-8')
+            repaired = string[i:i+2].encode('latin1').decode('utf-8')
             result.append(repaired)
             i += 2
         except (UnicodeEncodeError, UnicodeDecodeError):
-            # If it can't be repaired, just take one character as-is
-            result.append(token[i])
+            if(ord(string[i]) <= 255):
+                result.append(string[i])
             i += 1
     return ''.join(result)
+
+
+
+def sample_from_top_k(logits, k=3):
+    # Beam search, sample from top-k probabilities.
+    
+    topk_logits, topk_indices = torch.topk(logits, k)
+    probs = torch.nn.functional.softmax(topk_logits, dim=-1)
+    sampled_index = torch.multinomial(probs, 1).squeeze(-1)
+    return topk_indices[sampled_index]
 
 
 
@@ -131,45 +141,45 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         # Encode the input
         encoding = encoder(encoder_input_ids, encoder_attention_mask)
 
-        output_tokens = [bos_token_id]
         
-        for i in range(config.max_seq_len - 1):
-            # Create decoder input with current tokens
-            decoder_input = torch.tensor([output_tokens], dtype=torch.long, device=device)
-            decoder_mask  = torch.tensor([[True] * len(output_tokens)], dtype=torch.bool, device=device)
-
-            output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
-            
-            ### sample next token with temperature
-            ### disabled becasue the model is not strong enough to handle temperature for now
-            # last_logits = output_logits[0, len(output_tokens)-1, :]
-            # probabilities = torch.nn.functional.softmax(last_logits/config.temperature, dim=-1)
-            # dist = torch.distributions.categorical.Categorical(probs=probabilities)
-            # next_token = dist.sample().item()
-
-            ### Always get token with highest probability 
-            ### Get the next token's logits (at the current position)
-            next_token_logits = output_logits[0, len(output_tokens)-1, :]
-            next_token = next_token_logits.argmax().item()
-            
-            output_tokens.append(next_token)
-            
-            if next_token == eos_token_id:
-                break
-
-        fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=False)
-        fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
-        try:
-            fixed_utf8_french = fr_decoded.encode('latin1').decode('utf-8')
-        except Exception as e:
-            # print("Can't encode to Latin-1: ", e)
-            fixed_utf8_french = partial_utf8_repair(fr_decoded)
-            # fixed_utf8_french = fr_decoded  # fallback if decode fails
-
         print("")
         print(f"Input english text: {input}")
-        print(f"Output french text: {fixed_utf8_french}")
-        return fr_decoded
+        ### output 3 versions of the translation
+        for j in range(3):
+            output_tokens = [bos_token_id]
+            
+            for i in range(config.max_seq_len - 1):
+                # Create decoder input with current tokens
+                decoder_input = torch.tensor([output_tokens], dtype=torch.long, device=device)
+                decoder_mask  = torch.tensor([[True] * len(output_tokens)], dtype=torch.bool, device=device)
+
+                output_logits = decoder(decoder_input, decoder_mask, encoder_attention_mask, encoding)
+                
+                ### sample next token between the most probable ones
+                last_logits = output_logits[0, len(output_tokens)-1, :]
+                next_token = sample_from_top_k(last_logits, k=3)
+
+                ### Always get token with highest probability 
+                ### Get the next token's logits (at the current position)
+                # next_token_logits = output_logits[0, len(output_tokens)-1, :]
+                # next_token = next_token_logits.argmax().item()
+                
+                output_tokens.append(next_token)
+                
+                if next_token == eos_token_id:
+                    break
+
+            fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=True)
+            fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
+            fr_decoded = "".join(char for char in fr_decoded if ord(char) <= 255)
+            try:
+                fixed_utf8_french = fr_decoded.encode('latin1').decode('utf-8')
+            except Exception as e:
+                # print("Can't encode to Latin-1: ", e)
+                fixed_utf8_french = partial_utf8_repair(fr_decoded)
+                # fixed_utf8_french = fr_decoded  # fallback if decode fails
+
+            print(f"\n(Version {j+1}) -->  Output french text: {fixed_utf8_french}")
 
 
 
@@ -184,7 +194,6 @@ def get_lr(num_iters):
         return coeff * config.start_lr + (1-coeff) * config.min_lr
     else:
         return config.min_lr
-
 
 
 def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, test_text, device="cpu", num_epochs=100):

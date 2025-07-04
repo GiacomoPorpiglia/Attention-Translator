@@ -139,13 +139,7 @@ Key hyperparameters in `config.py`:
 
 ## 📈 Dataset
 
-The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/datasets/dhruvildave/en-fr-translation-dataset) from Kaggle, containing parallel English-French sentence pairs.
-
-**Preprocessing Steps:**
-1. Remove non-Latin script text
-2. Filter by sequence length
-3. Train custom BPE tokenizer
-4. Create attention masks for padding
+The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/datasets/dhruvildave/en-fr-translation-dataset) from Kaggle, containing parallel English-French sentence pairs. The dataset was cleaned to have only Latin characters, and was not used etirely for training cost reasons. Approzimately 3M sentence pairs were used for training.
 
 
 ## 📝 Example Output

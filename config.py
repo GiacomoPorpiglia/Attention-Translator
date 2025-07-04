@@ -12,5 +12,3 @@ lr_decay_iters = 100000 ### decrease from start_lr to min_lr in lr_decay_steps s
 warmup_iters = 2000
 
 weight_decay = 1e-5
-
-temperature = 0.1 ### not used in standard version
