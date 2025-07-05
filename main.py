@@ -15,7 +15,6 @@ import kagglehub
 import argparse
 
 
-
 def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len):
     encoder_inputs, decoder_inputs = zip(*batch)
 
@@ -93,21 +92,6 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
         raise RuntimeError
 
 
-def partial_utf8_repair(string: str) -> str:
-    result = []
-    i = 0
-    while i < len(string):
-        try:
-            # Try to decode 2-character slices (common for UTF-8 misdecoding)
-            repaired = string[i:i+2].encode('latin1').decode('utf-8')
-            result.append(repaired)
-            i += 2
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            if(ord(string[i]) <= 255):
-                result.append(string[i])
-            i += 1
-    return ''.join(result)
-
 
 
 def sample_from_top_k(logits, k=3):
@@ -170,16 +154,8 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
                     break
 
             fr_decoded = tokenizer.decode(output_tokens, skip_special_tokens=True)
-            fr_decoded = fr_decoded.replace(" ", "").replace("Ġ", " ")
-            fr_decoded = "".join(char for char in fr_decoded if ord(char) <= 255)
-            try:
-                fixed_utf8_french = fr_decoded.encode('latin1').decode('utf-8')
-            except Exception as e:
-                # print("Can't encode to Latin-1: ", e)
-                fixed_utf8_french = partial_utf8_repair(fr_decoded)
-                # fixed_utf8_french = fr_decoded  # fallback if decode fails
 
-            print(f"\n(Version {j+1}) -->  Output french text: {fixed_utf8_french}")
+            print(f"\n(Version {j+1}) -->  Output french text: {fr_decoded}")
 
 
 

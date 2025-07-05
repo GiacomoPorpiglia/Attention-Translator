@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import kagglehub
 import regex
+from tokenizers.decoders import ByteLevel as ByteLevelDecoder
+
 
 pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
 
@@ -52,4 +54,4 @@ if not os.path.exists(tokenizer_path):
     train_tokenizer(df)
 
 loaded_tokenizer = Tokenizer.from_file(tokenizer_path)
-
+loaded_tokenizer.decoder = ByteLevelDecoder()
