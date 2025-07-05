@@ -123,11 +123,11 @@ The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/d
 ```
 Input english text: One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings.
 
-(Version 1) -->  Output french text:  l'un des symboles les plus largement reconnus de la culture humaine est celui de l'espèce qui est largement caractérisée dans les sculptures et les peintures.
+(Version 1) -->  Output french text:  l’un des symboles animaux les plus reconnus de culture humaine est, dans une large mesure, un dessin d’animaux de marque et de peintures.
 
-(Version 2) -->  Output french text:  lâun des symboles animaux les plus largement reconnus dans le domaine de la culture humaine, le lon a été largement décrit dans les sculptures et les peintures.
+(Version 2) -->  Output french text:  l’une des symboles animaux les plus reconnus dans la culture humaine est le lion, qui a été largement décrit dans le domaine de la sculpabilité et de la peinture.
 
-(Version 3) -->  Output french text:  un des symboles animaux le plus largement reconnus dans la culture humaine, lâor est largement caractérisé par des sculptures et des peintures.
+(Version 3) -->  Output french text:  l’un des symboles les plus reconnus de la culture humaine, l’on a largement décrit l’importance de la production de chaux dans les sculpturements et peintures.
 ```
 
 ## 📄 License
