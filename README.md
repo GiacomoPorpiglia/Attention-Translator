@@ -1,6 +1,7 @@
 # English-to-French Neural Machine Translation
 
-A PyTorch implementation of a Transformer-based translation model for English-to-French translation. This project implements the classic encoder-decoder architecture with attention mechanisms from scratch, inspired form the famous paper "Attention Is All You Need".
+A PyTorch implementation of a Transformer-based translation model for English-to-French translation. This project implements the classic encoder-decoder architecture with attention mechanisms from scratch, inspired form the famous paper "Attention Is All You Need".<br>
+#### Disclaimer: The pre-trained model you will find under releases has been trained for only 21 epochs due to cost, so don't expect it to be the perfect translator! THsi project is intended as a way to familiarize with the seq2seq transformer architecture for now. Maybe in the future I will make a more serious training to have better performance!
 
 ## 📋 Requirements
 
