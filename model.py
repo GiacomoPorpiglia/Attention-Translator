@@ -9,12 +9,11 @@ warnings.filterwarnings("ignore", message=".*was not compiled with flash attenti
 Non causal self attention block to use in the encoder, where every token can attend to all others
 """
 class NonCausalSelfAttentionBlock(nn.Module):
-    def __init__(self, model_dim, num_heads, sequence_length_max):
+    def __init__(self, model_dim, num_heads):
         super(NonCausalSelfAttentionBlock, self).__init__()
 
         self.model_dim = model_dim
         self.num_heads = num_heads
-        self.sequence_length_max = sequence_length_max
 
         self.head_dim = model_dim // num_heads
 
@@ -155,13 +154,11 @@ K and V are obtained from the encoder's output, while Q is obtained from the hea
 
 """
 class CrossAttentionBlock(nn.Module):
-    def __init__(self, model_dim, num_heads, sequence_length_max):
+    def __init__(self, model_dim, num_heads):
         super(CrossAttentionBlock, self).__init__()
 
         self.model_dim = model_dim
         self.num_heads = num_heads
-        self.sequence_length_max = sequence_length_max
-
         self.head_dim = model_dim // num_heads
 
         self.query = nn.Linear(model_dim, model_dim, bias=False)
@@ -248,7 +245,7 @@ class EncoderTransformerBlock(nn.Module):
 
         self.norm1 = nn.LayerNorm(model_dim)
 
-        self.attention = NonCausalSelfAttentionBlock(model_dim, num_heads, sequence_length)  
+        self.attention = NonCausalSelfAttentionBlock(model_dim, num_heads)  
 
         self.norm2 = nn.LayerNorm(model_dim)
         self.mlp = MLPLayer(model_dim)
@@ -266,7 +263,7 @@ class DecoderTransformerBlock(nn.Module):
         self.norm1 = nn.LayerNorm(model_dim)
 
         self.self_attention = CausalAttentionBlock(model_dim, num_heads, sequence_length)  
-        self.cross_attention = CrossAttentionBlock(model_dim, num_heads, sequence_length)  
+        self.cross_attention = CrossAttentionBlock(model_dim, num_heads)  
 
         self.norm2 = nn.LayerNorm(model_dim)
 

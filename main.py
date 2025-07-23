@@ -15,7 +15,7 @@ import kagglehub
 import argparse
 
 
-def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.max_seq_len):
+def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.context_window):
     encoder_inputs, decoder_inputs = zip(*batch)
 
     encoder_inputs = [x[:max_length-2] if len(x) > max_length-2 else x for x in encoder_inputs]
@@ -111,8 +111,8 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         en_encoding = torch.tensor(tokenizer.encode(input).ids, dtype=torch.long)
         fr_encoding = torch.tensor([0], dtype=torch.long) ### not important
 
-        if(en_encoding.size(-1) > config.max_seq_len):
-            print(f"\nWarning: The input consists of {en_encoding.size(-1)} tokens, which exceeds the maximum context window of the model ({config.max_seq_len} tokens). The input will be truncated.")
+        if(en_encoding.size(-1) > config.context_window):
+            print(f"\nWarning: The input consists of {en_encoding.size(-1)} tokens, which exceeds the maximum context window of the model ({config.context_window} tokens). The input will be truncated.")
 
 
         batch = [(en_encoding, fr_encoding)]
@@ -130,7 +130,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         for j in range(3):
             output_tokens = [bos_token_id]
             
-            for i in range(config.max_seq_len - 1):
+            for i in range(config.context_window - 1):
                 # Create decoder input with current tokens
                 decoder_input = torch.tensor([output_tokens], dtype=torch.long, device=device)
                 decoder_mask  = torch.tensor([[True] * len(output_tokens)], dtype=torch.bool, device=device)
@@ -303,7 +303,7 @@ if __name__ == "__main__":
         print("Path to dataset files:", path)
         df = pd.read_csv(path + "/en-fr.csv").head(3000000)
 
-        dataset = PhrasesDataset(df, loaded_tokenizer, config.max_seq_len)
+        dataset = PhrasesDataset(df, loaded_tokenizer, config.context_window)
         train_len = int(len(dataset) * 0.9)
         val_len = len(dataset) - train_len
 
@@ -318,9 +318,9 @@ if __name__ == "__main__":
         dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
 
 
-        encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.context_window, dim=config.embd_dim).to(device)
         print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-        decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.context_window, dim=config.embd_dim).to(device)
         print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
 
 
@@ -337,9 +337,9 @@ if __name__ == "__main__":
             print("Error: you must specify the --model_path option in order to load the model to test!")
             exit(1)
 
-        encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        encoder = Encoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.context_window, dim=config.embd_dim).to(device)
         print("Encoder parameters:", sum(p.numel() for p in encoder.parameters() if p.requires_grad))
-        decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.max_seq_len, dim=config.embd_dim).to(device)
+        decoder = Decoder(num_embeddings=20000, num_heads_per_block=8, num_blocks=5, sequence_length_max=config.context_window, dim=config.embd_dim).to(device)
         print("Decoder parameters:", sum(p.numel() for p in decoder.parameters() if p.requires_grad))
         optimizer = optim.Adam(params=list(encoder.parameters())+list(decoder.parameters()), lr=config.start_lr, weight_decay=config.weight_decay)
         try:
