@@ -29,14 +29,9 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     decoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), y, torch.tensor([eos_token_id])]) for y in decoder_inputs]
     decoder_inputs  = pad_sequence(decoder_inputs, batch_first=True, padding_value=pad_token_id)
 
-    # encoder_len = encoder_inputs.size(1)
-    # decoder_len = decoder_inputs.size(1)
-
-    # decoder_targets = torch.stack([torch.cat([x[1:], torch.tensor([pad_token_id])]) for x in decoder_inputs], dim=0)
     decoder_targets = decoder_inputs[:, 1:].clone()
     decoder_targets = torch.cat((decoder_targets, torch.full(size=(decoder_targets.size(0), 1),fill_value=pad_token_id)), dim=1)
     decoder_targets[decoder_targets == pad_token_id] = -100 # set to -100 where the value to predict is pad. These tokens will be ignored in loss calculation
-
     
 
     # Build attention masks (1 where token ≠ pad, 0 where token == pad)
@@ -48,11 +43,11 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
     return {
       'encoder_input_ids':           encoder_inputs,
       'encoder_attention_mask':      encoder_attention_mask,
-      'decoder_input_ids':   decoder_inputs,    # your decoder uses teacher forcing
-      'decoder_attention_mask': decoder_attention_mask,
-      'labels':              decoder_targets,
-      'encoder_lengths': (encoder_inputs != pad_token_id).sum(dim=1),
-      'decoder_lengths': (decoder_inputs != pad_token_id).sum(dim=1),
+      'decoder_input_ids':           decoder_inputs,
+      'decoder_attention_mask':      decoder_attention_mask,
+      'labels':                      decoder_targets,
+      'encoder_lengths':            (encoder_inputs != pad_token_id).sum(dim=1),
+      'decoder_lengths':            (decoder_inputs != pad_token_id).sum(dim=1),
     }
 
 
@@ -116,15 +111,18 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         en_encoding = torch.tensor(tokenizer.encode(input).ids, dtype=torch.long)
         fr_encoding = torch.tensor([0], dtype=torch.long) ### not important
 
+        if(en_encoding.size(-1) > config.max_seq_len):
+            print(f"\nWarning: The input consists of {en_encoding.size(-1)} tokens, which exceeds the maximum context window of the model ({config.max_seq_len} tokens). The input will be truncated.")
+
+
         batch = [(en_encoding, fr_encoding)]
         batch = collate_fn(batch, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id)
         
         encoder_input_ids = batch['encoder_input_ids'].to(device)
         encoder_attention_mask = batch['encoder_attention_mask'].to(device)
-
+        
         # Encode the input
         encoding = encoder(encoder_input_ids, encoder_attention_mask)
-
         
         print("")
         print(f"Input english text: {input}")
