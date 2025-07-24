@@ -1,7 +1,7 @@
 # English-to-French Neural Machine Translation
 
 A PyTorch implementation of a Transformer-based translation model for English-to-French translation. This project implements the classic encoder-decoder architecture with attention mechanisms from scratch, inspired form the famous paper "Attention Is All You Need".<br>
-#### Disclaimer: The pre-trained model you will find under releases has been trained for only 21 epochs due to cost, so don't expect it to be the perfect translator! This project is intended as a way to familiarize with the seq2seq transformer architecture for now. Maybe in the future I will make a more serious training to have better performance!
+#### Disclaimer: The pre-trained model you will find under releases has been trained for only 11 epochs due to training costs, so don't expect it to be the perfect translator! This project is intended as a way to familiarize with the seq2seq transformer architecture for now. Maybe in the future I will make a more serious training to have better performance!
 
 ## 📋 Requirements
 
@@ -87,7 +87,7 @@ Key hyperparameters in `config.py`:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `max_seq_len` | Maximum sequence length (in tokens) | 128 |
+| `max_seq_len` | Maximum sequence length (in tokens) | 192 |
 | `embd_dim` | Model embedding dimension | 512 |
 | `mini_batch_size` | Mini Batch size | 64 |
 | `batch_size` | Batch size | 1024 |
@@ -115,19 +115,19 @@ Key hyperparameters in `config.py`:
 
 ## 📈 Dataset
 
-The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/datasets/dhruvildave/en-fr-translation-dataset) from Kaggle, containing parallel English-French sentence pairs. The dataset was cleaned to have only Latin characters, and was not used etirely for training cost reasons. Approzimately 4M sentence pairs were used for training.
+The model is trained on the [EN-FR Translation Dataset](https://www.kaggle.com/datasets/dhruvildave/en-fr-translation-dataset) from Kaggle, containing parallel English-French sentence pairs. Approzimately 6M sentence pairs were used for training.
 
 
 ## 📝 Example Output
 
 ```
-Input english text: One of the most widely recognised animal symbols in human culture, the lion has been extensively depicted in sculptures and paintings.
+Input english text: Technology has changed the way we communicate, making it easier to stay connected but harder to truly disconnect.
 
-(Version 1) -->  Output french text:  l’un des symboles animaux les plus reconnus de culture humaine est, dans une large mesure, un dessin d’animaux de marque et de peintures.
+(Version 1) -->  Output french text:  les technologies ont modifié notre façon de communiquer, de rendre plus faciles à demeurer branchées, et plus faciles à dissiper vraiment.
 
-(Version 2) -->  Output french text:  l’une des symboles animaux les plus reconnus dans la culture humaine est le lion, qui a été largement décrit dans le domaine de la sculpabilité et de la peinture.
+(Version 2) -->  Output french text:  la technologie a modifié notre façon de communiquer, ce qui rend plus facile la connexion de rester en contact, mais plus difficile de s’adapter à un problème véritable.
 
-(Version 3) -->  Output french text:  l’un des symboles les plus reconnus de la culture humaine, l’on a largement décrit l’importance de la production de chaux dans les sculpturements et peintures.
+(Version 3) -->  Output french text:  la technologie a changé la façon dont nous communiquerons, de façon à le faire plus facile de demeurer branchée mais de s’adapter aux problèmes qui s’y rattachent.
 ```
 
 ## 📄 License

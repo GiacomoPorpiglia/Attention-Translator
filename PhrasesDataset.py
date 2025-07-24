@@ -1,15 +1,7 @@
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset
-from my_tokenizer import loaded_tokenizer
-import unicodedata
-import regex
 import random
 
-pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
-
-def is_latin(text):
-    return bool(pattern.fullmatch(text))
 
     
 class PhrasesDataset(Dataset):
@@ -26,8 +18,7 @@ class PhrasesDataset(Dataset):
         df = df[(df['en'].apply(lambda x: isinstance(x, str))) & (df['fr'].apply(lambda x: isinstance(x, str)))]
     
         # Apply the pattern to both columns
-        mask = df['en'].apply(is_latin) & df['fr'].apply(is_latin)
-        df = df[mask].reset_index(drop=True)
+        df = df.reset_index(drop=True)
         
         for _, row in df.iterrows():
             en_tokens = tokenizer.encode(row['en']).ids

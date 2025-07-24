@@ -2,14 +2,8 @@ from tokenizers import Tokenizer, models, trainers, pre_tokenizers, normalizers
 import os
 import pandas as pd
 import kagglehub
-import regex
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 
-
-pattern = regex.compile(r'^[\p{Latin}\p{N}\p{P}\p{Zs}]*$', regex.UNICODE)
-
-def is_latin(text):
-    return bool(pattern.fullmatch(text))
 
 tokenizer_path = "tokenizer.json"
 
@@ -32,9 +26,7 @@ def train_tokenizer(df):
     df = df.dropna(subset=['en', 'fr'])
     df = df[(df['en'].apply(lambda x: isinstance(x, str))) & (df['fr'].apply(lambda x: isinstance(x, str)))]
 
-    # Apply the pattern to both columns
-    mask = df['en'].apply(is_latin) & df['fr'].apply(is_latin)
-    clean_df = df[mask].reset_index(drop=True)
+    clean_df = df.reset_index(drop=True)
 
     texts_en = clean_df['en'].astype(str).tolist()
     texts_fr = clean_df['fr'].astype(str).tolist()

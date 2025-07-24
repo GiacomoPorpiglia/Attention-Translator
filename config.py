@@ -1,6 +1,6 @@
 embd_dim = 512
 
-context_window = 128
+context_window = 192
 
 batch_size = 1024
 mini_batch_size = 64

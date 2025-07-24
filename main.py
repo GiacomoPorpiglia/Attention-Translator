@@ -301,7 +301,7 @@ if __name__ == "__main__":
 
         path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
         print("Path to dataset files:", path)
-        df = pd.read_csv(path + "/en-fr.csv").head(3000000)
+        df = pd.read_csv(path + "/en-fr.csv").head(6000000)
 
         dataset = PhrasesDataset(df, loaded_tokenizer, config.context_window)
         train_len = int(len(dataset) * 0.9)
