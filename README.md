@@ -7,11 +7,10 @@ A PyTorch implementation of a Transformer-based translation model for English-to
 
 ```
 torch
-pandas
-kagglehub
-tokenizers
+pandas==2.2.3
+kagglehub==0.3.12
+tokenizers==0.21.0
 tqdm
-regex
 ```
 
 ## 🏗️ Architecture
