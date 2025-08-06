@@ -52,19 +52,6 @@ def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=confi
 
 
 
-
-
-# input = next(iter(dataloader_train))
-# print(input['encoder_input_ids'].shape, input['encoder_attention_mask'].shape, input['decoder_input_ids'].shape, input['decoder_attention_mask'].shape, input['labels'].shape)
-
-# encoding=encoder(input['encoder_input_ids'], input['encoder_attention_mask'])
-# output = decoder(input['decoder_input_ids'], input['decoder_attention_mask'], encoding)
-
-# targets = input['labels']
-# logits = output
-
-
-
 def save_checkpoint(checkpoint, filename):
     print("=> saving checkpoint...")
     try:
@@ -88,15 +75,14 @@ def load_checkpoint(encoder, decoder, optimizer, checkpoint):
 
 
 
-
+'''
+Beam search, sample next token from top-k probabilities.
+'''
 def sample_from_top_k(logits, k=3):
-    # Beam search, sample from top-k probabilities.
-    
     topk_logits, topk_indices = torch.topk(logits, k)
     probs = torch.nn.functional.softmax(topk_logits, dim=-1)
     sampled_index = torch.multinomial(probs, 1).squeeze(-1)
     return topk_indices[sampled_index]
-
 
 
 def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_token_id=1, eos_token_id=2):
@@ -118,7 +104,7 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
         batch = [(en_encoding, fr_encoding)]
         batch = collate_fn(batch, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id)
         
-        encoder_input_ids = batch['encoder_input_ids'].to(device)
+        encoder_input_ids      = batch['encoder_input_ids'].to(device)
         encoder_attention_mask = batch['encoder_attention_mask'].to(device)
         
         # Encode the input
@@ -157,9 +143,10 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
 
 
-
+"""
+Learning rate schedule logic
+"""
 def get_lr(num_iters):
-
     if(num_iters < config.warmup_iters):
         return config.start_lr * num_iters / config.warmup_iters
 
@@ -168,6 +155,7 @@ def get_lr(num_iters):
         return coeff * config.start_lr + (1-coeff) * config.min_lr
     else:
         return config.min_lr
+
 
 
 def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criterion, test_text, device="cpu", num_epochs=100):
@@ -220,7 +208,6 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
                 torch.nn.utils.clip_grad_norm_(list(encoder.parameters()) + list(decoder.parameters()), 1.0)
 
                 optimizer.step()      
-
                 optimizer.zero_grad()
 
                 # Update learning rate
@@ -277,23 +264,16 @@ def train(encoder, decoder, optimizer, dataloader_train, dataloader_val, criteri
 
 
 
-# Load the model checkpoint if needed
-# checkpoint = torch.load("checkpoint_epoch_13.pth")
-# load_checkpoint(encoder, decoder, optimizer, checkpoint)
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-                    prog='Attention Translator')
+    parser = argparse.ArgumentParser(prog='Attention Translator')
     parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train', help='Mode of execution (train/test).')
     parser.add_argument('--model_path', type=str, help="Relative or absolute checkpoint path to load for testing.")
 
     args = parser.parse_args()
-
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device: ", device)
 
-    # Download latest version
     if args.mode == 'train':
 
         if args.model_path != None:
@@ -304,7 +284,7 @@ if __name__ == "__main__":
         df = pd.read_csv(path + "/en-fr.csv").head(6000000)
 
         dataset = PhrasesDataset(df, loaded_tokenizer, config.context_window)
-        train_len = int(len(dataset) * 0.9)
+        train_len = int(len(dataset) * 0.9) # 90 % of the dataset used for training
         val_len = len(dataset) - train_len
 
 
@@ -312,7 +292,6 @@ if __name__ == "__main__":
 
         train_sampler = BucketBatchSampler(train_dataset, config.mini_batch_size, config.bucket_size)
         val_sampler   = BucketBatchSampler(val_dataset,   config.mini_batch_size, config.bucket_size)
-
 
         dataloader_train = DataLoader(train_dataset, batch_sampler=train_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
         dataloader_val = DataLoader(val_dataset, batch_sampler=val_sampler, collate_fn=lambda batch: collate_fn(batch, pad_token_id=0, bos_token_id=1,  eos_token_id=2), num_workers=4, persistent_workers=True, pin_memory=True)
