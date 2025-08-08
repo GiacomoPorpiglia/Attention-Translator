@@ -14,28 +14,43 @@ import config
 import kagglehub
 import argparse
 
-
+"""
+This function adjusts the token sequences to mke them feedable to the neural network.
+Initially, the batch is a list of tuples, where the tuple contains the two tensors with english and french
+token indices.
+Now, we have to convert everything into a tensor, but right now the sequences are missing:
+- BOS token
+- EOS token
+- They are of different length, so they can't be put together into one tensor. For that, we have to add
+  PAD tokens at the end of each sequence, except for the longest one. This process has to be done separately for the english and french sequences, as they are needed as two different tensors, so they can be of different size.
+"""
 def collate_fn(batch, pad_token_id, bos_token_id, eos_token_id, max_length=config.context_window):
     encoder_inputs, decoder_inputs = zip(*batch)
 
+    # limit the length to max_length-2, to account for BOS and EOS tokens,
+    # which  are still to be added
     encoder_inputs = [x[:max_length-2] if len(x) > max_length-2 else x for x in encoder_inputs]
     decoder_inputs = [x[:max_length-2] if len(x) > max_length-2 else x for x in decoder_inputs]
 
-    # [BOS,..., ..., EOS, (PAD, PAD)]
+    # add BOS and EOS
     encoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), x, torch.tensor([eos_token_id])]) for x in encoder_inputs]
+    # add PAD to the end as described above
     encoder_inputs  = pad_sequence(encoder_inputs, batch_first=True, padding_value=pad_token_id)
 
-    # [BOS,..., ..., EOS, (PAD, PAD)]
+    # add BOS and EOS
     decoder_inputs  = [torch.cat([torch.tensor([bos_token_id]), y, torch.tensor([eos_token_id])]) for y in decoder_inputs]
+    # add PAD to the end as described above
     decoder_inputs  = pad_sequence(decoder_inputs, batch_first=True, padding_value=pad_token_id)
 
+    # autoregressive targets (as first token, it shuold output the second of the input sequence, and so on)
     decoder_targets = decoder_inputs[:, 1:].clone()
-    decoder_targets = torch.cat((decoder_targets, torch.full(size=(decoder_targets.size(0), 1),fill_value=pad_token_id)), dim=1)
+    decoder_targets = torch.cat((decoder_targets, torch.full(size=(decoder_targets.size(0), 1),fill_value=pad_token_id)), dim=1) # add pad tokens to the targets as well, as it shuold be the same size as the inputs
+
     decoder_targets[decoder_targets == pad_token_id] = -100 # set to -100 where the value to predict is pad. These tokens will be ignored in loss calculation
     
 
     # Build attention masks (1 where token ≠ pad, 0 where token == pad)
-    ### true for tokens that are not pad --> true for tokens we want to attend
+    # (true for tokens that are not pad --> true for tokens we want to attend)
     encoder_attention_mask  = (encoder_inputs != pad_token_id).bool() 
     decoder_attention_mask  = (decoder_inputs != pad_token_id).bool()
 
@@ -144,7 +159,9 @@ def test(input, encoder, decoder, tokenizer, device="cpu", pad_token_id=0, bos_t
 
 
 """
-Learning rate schedule logic
+Learning rate schedule logic. For the first iteration, we gradually
+increase the lr (cold start), and after that we decrease it gradually 
+according to a cosine schedule.
 """
 def get_lr(num_iters):
     if(num_iters < config.warmup_iters):

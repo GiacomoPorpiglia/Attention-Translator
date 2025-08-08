@@ -7,6 +7,12 @@ from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 
 tokenizer_path = "tokenizer.json"
 
+"""
+build a tokenizer based on the pandas df passed in input.
+The df has 2 columns, named 'en' and 'fr'. Each row contains
+sentence pairs in the two languages.
+The size of the vocabulary is limited to 20000 tokens.
+"""
 def train_tokenizer(df):
 
     tokenizer = Tokenizer(models.BPE(unk_token="<unk>"))
@@ -37,7 +43,7 @@ def train_tokenizer(df):
     
 if not os.path.exists(tokenizer_path):
     
-    # Download the dataset
+    # download the dataset
     path = kagglehub.dataset_download("dhruvildave/en-fr-translation-dataset")
     df = pd.read_csv(os.path.join(path, "en-fr.csv"))
     
